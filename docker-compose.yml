@@ -1,0 +1,39 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: example-security-backend
+    ports:
+      - "8080:8080"
+    environment:
+      MONGODB_URI: ${MONGODB_URI:-mongodb://mongo:27017/example_security}
+      INITIAL_SUPER_USERNAME: ${INITIAL_SUPER_USERNAME:-super}
+      INITIAL_SUPER_PASSWORD: ${INITIAL_SUPER_PASSWORD:-ChangeThisPassword123!}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:3000}
+      SSL_ENABLED: ${SSL_ENABLED:-false}
+    depends_on:
+      - mongo
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE: ${VITE_API_BASE:-http://localhost:8080/ExampleSecurity}
+    container_name: example-security-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+  mongo:
+    image: mongo:7
+    container_name: example-security-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+volumes:
+  mongo-data:
