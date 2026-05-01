@@ -49,8 +49,7 @@ public class UserService {
             throw new IllegalArgumentException("Username already exists");
         }
 
-        byte[] salt = new byte[SALT_BYTES];
-        secureRandom.nextBytes(salt);
+        byte[] salt = newSalt();
 
         AppUser user = new AppUser();
         user.setUsername(username.trim());
@@ -80,12 +79,33 @@ public class UserService {
         return toDto(userRepository.save(user));
     }
 
+    public UserDto updatePassword(String username, String newPassword) {
+        if (newPassword == null || newPassword.isBlank()) {
+            throw new IllegalArgumentException("Password is required");
+        }
+
+        AppUser user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found: " + username));
+
+        byte[] salt = newSalt();
+        user.setSalt(salt);
+        user.setHash(hashPassword(salt, newPassword));
+
+        return toDto(userRepository.save(user));
+    }
+
     public void deleteByUsername(String username) {
         userRepository.deleteByUsername(username);
     }
 
     public UserDto toDto(AppUser user) {
         return new UserDto(user.getId(), user.getUsername(), user.getRoles());
+    }
+
+    private byte[] newSalt() {
+        byte[] salt = new byte[SALT_BYTES];
+        secureRandom.nextBytes(salt);
+        return salt;
     }
 
     public static String hashPassword(byte[] salt, String password) {

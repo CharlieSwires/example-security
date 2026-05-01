@@ -1,6 +1,7 @@
 package com.example.security.controller;
 
 import com.example.security.dto.CreateUserRequest;
+import com.example.security.dto.UpdatePasswordRequest;
 import com.example.security.dto.UpdateRolesRequest;
 import com.example.security.dto.UserDto;
 import com.example.security.service.UserService;
@@ -33,6 +34,11 @@ public class AdminUserController {
     @PutMapping("/{username}/roles")
     public UserDto updateRoles(@PathVariable String username, @RequestBody UpdateRolesRequest request) {
         return userService.updateRoles(username, request.roles());
+    }
+
+    @PutMapping("/{username}/password")
+    public UserDto updatePassword(@PathVariable String username, @RequestBody UpdatePasswordRequest request) {
+        return userService.updatePassword(username, request.password());
     }
 
     @DeleteMapping("/{username}")

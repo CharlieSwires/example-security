@@ -142,21 +142,8 @@ function Dashboard({ session, onLogout }) {
         </div>
 
         <div className="row g-4">
-          <EndpointCard
-            title="/user"
-            description="Available to USER and SUPER."
-            enabled={isUser}
-            session={session}
-            path="/user"
-          />
-
-          <EndpointCard
-            title="/developer"
-            description="Available to DEVELOPER and SUPER."
-            enabled={isDeveloper}
-            session={session}
-            path="/developer"
-          />
+          <EndpointCard title="/user" description="Available to USER and SUPER." enabled={isUser} session={session} path="/user" />
+          <EndpointCard title="/developer" description="Available to DEVELOPER and SUPER." enabled={isDeveloper} session={session} path="/developer" />
         </div>
 
         {isSuper ? (
@@ -261,7 +248,29 @@ function AdminPanel({ session }) {
       setMessage(`Roles updated for ${username}.`);
       await loadUsers();
     } catch (err) {
-      setError(`Could not update ${username}.`);
+      setError(`Could not update roles for ${username}.`);
+    }
+  }
+
+  async function updatePassword(username, password) {
+    setError('');
+    setMessage('');
+
+    try {
+      await apiFetch(`/api/admin/users/${encodeURIComponent(username)}/password`, {
+        method: 'PUT',
+        body: JSON.stringify({ password })
+      }, session);
+
+      setMessage(`Password updated for ${username}.`);
+
+      if (username === session.username) {
+        const updatedSession = { ...session, password };
+        sessionStorage.setItem('example-security-session', JSON.stringify(updatedSession));
+        setMessage(`Password updated for ${username}. Your current browser session has been updated too.`);
+      }
+    } catch (err) {
+      setError(`Could not update password for ${username}.`);
     }
   }
 
@@ -295,23 +304,12 @@ function AdminPanel({ session }) {
           <form className="row g-3 align-items-end mb-4" onSubmit={createUser}>
             <div className="col-md-3">
               <label className="form-label">Username</label>
-              <input
-                className="form-control"
-                value={form.username}
-                onChange={event => setForm({ ...form, username: event.target.value })}
-                required
-              />
+              <input className="form-control" value={form.username} onChange={event => setForm({ ...form, username: event.target.value })} required />
             </div>
 
             <div className="col-md-3">
               <label className="form-label">Password</label>
-              <input
-                className="form-control"
-                type="password"
-                value={form.password}
-                onChange={event => setForm({ ...form, password: event.target.value })}
-                required
-              />
+              <input className="form-control" type="password" value={form.password} onChange={event => setForm({ ...form, password: event.target.value })} required />
             </div>
 
             <div className="col-md-4">
@@ -319,12 +317,7 @@ function AdminPanel({ session }) {
               <div className="d-flex gap-3 flex-wrap">
                 {['USER', 'DEVELOPER', 'SUPER'].map(role => (
                   <label className="form-check" key={role}>
-                    <input
-                      className="form-check-input"
-                      type="checkbox"
-                      checked={form.roles.includes(role)}
-                      onChange={() => toggleRole(role)}
-                    />
+                    <input className="form-check-input" type="checkbox" checked={form.roles.includes(role)} onChange={() => toggleRole(role)} />
                     <span className="form-check-label">{role}</span>
                   </label>
                 ))}
@@ -342,6 +335,7 @@ function AdminPanel({ session }) {
               <tr>
                 <th>Username</th>
                 <th>Roles</th>
+                <th>New password</th>
                 <th className="text-end">Actions</th>
               </tr>
               </thead>
@@ -352,6 +346,7 @@ function AdminPanel({ session }) {
                   user={user}
                   currentUsername={session.username}
                   onSaveRoles={saveRoles}
+                  onUpdatePassword={updatePassword}
                   onDelete={deleteUser}
                 />
               ))}
@@ -364,14 +359,24 @@ function AdminPanel({ session }) {
   );
 }
 
-function UserRow({ user, currentUsername, onSaveRoles, onDelete }) {
+function UserRow({ user, currentUsername, onSaveRoles, onUpdatePassword, onDelete }) {
   const [roles, setRoles] = useState(user.roles);
+  const [newPassword, setNewPassword] = useState('');
 
   function toggle(role) {
     setRoles(roles.includes(role)
       ? roles.filter(item => item !== role)
       : [...roles, role]
     );
+  }
+
+  async function updatePassword() {
+    if (!newPassword.trim()) {
+      return;
+    }
+
+    await onUpdatePassword(user.username, newPassword);
+    setNewPassword('');
   }
 
   return (
@@ -381,26 +386,29 @@ function UserRow({ user, currentUsername, onSaveRoles, onDelete }) {
         <div className="d-flex gap-3 flex-wrap">
           {['USER', 'DEVELOPER', 'SUPER'].map(role => (
             <label className="form-check mb-0" key={role}>
-              <input
-                className="form-check-input"
-                type="checkbox"
-                checked={roles.includes(role)}
-                onChange={() => toggle(role)}
-              />
+              <input className="form-check-input" type="checkbox" checked={roles.includes(role)} onChange={() => toggle(role)} />
               <span className="form-check-label">{role}</span>
             </label>
           ))}
         </div>
       </td>
-      <td className="text-end">
+      <td>
+        <input
+          className="form-control form-control-sm"
+          type="password"
+          placeholder="New password"
+          value={newPassword}
+          onChange={event => setNewPassword(event.target.value)}
+        />
+      </td>
+      <td className="text-end text-nowrap">
         <button className="btn btn-outline-primary btn-sm me-2" onClick={() => onSaveRoles(user.username, roles)}>
           Save roles
         </button>
-        <button
-          className="btn btn-outline-danger btn-sm"
-          disabled={user.username === currentUsername}
-          onClick={() => onDelete(user.username)}
-        >
+        <button className="btn btn-outline-secondary btn-sm me-2" onClick={updatePassword} disabled={!newPassword.trim()}>
+          Update pw
+        </button>
+        <button className="btn btn-outline-danger btn-sm" disabled={user.username === currentUsername} onClick={() => onDelete(user.username)}>
           Delete
         </button>
       </td>

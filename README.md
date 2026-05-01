@@ -29,6 +29,24 @@ Spring Boot + Spring Security + MongoDB Atlas + React example.
 cd backend
 ```
 
+Set your MongoDB Atlas URI.
+
+### Windows PowerShell
+
+```powershell
+$env:MONGODB_URI="mongodb+srv://USERNAME:PASSWORD@cluster.example.mongodb.net/example_security?retryWrites=true&w=majority"
+$env:INITIAL_SUPER_USERNAME="super"
+$env:INITIAL_SUPER_PASSWORD="ChangeThisPassword123!"
+```
+
+### Git Bash / Linux
+
+```bash
+export MONGODB_URI='mongodb+srv://USERNAME:PASSWORD@cluster.example.mongodb.net/example_security?retryWrites=true&w=majority'
+export INITIAL_SUPER_USERNAME='super'
+export INITIAL_SUPER_PASSWORD='ChangeThisPassword123!'
+```
+
 Run:
 
 ```bash
@@ -125,3 +143,24 @@ http://localhost:5173
 ```
 
 See `README-Docker.md` for MongoDB Atlas and local MongoDB options.
+
+
+## Updating a user's password
+
+The SUPER admin screen includes a **New password** field and **Update pw** button for each user.
+
+Backend endpoint:
+
+```text
+PUT /ExampleSecurity/api/admin/users/{username}/password
+```
+
+Request body:
+
+```json
+{
+  "password": "new-password-here"
+}
+```
+
+The password is not stored directly. The backend creates a new salt and stores only the new PBKDF2 hash and salt.
