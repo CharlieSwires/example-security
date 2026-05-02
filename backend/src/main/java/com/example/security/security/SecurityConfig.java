@@ -17,6 +17,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 
 import java.util.Arrays;
 import java.util.List;
@@ -24,60 +25,70 @@ import java.util.List;
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
-    @Value("${app.cors.allowed-origins}")
-    private String allowedOrigins;
+	@Value("${app.cors.allowed-origins}")
+	private String allowedOrigins;
 
-    @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-                .cors(Customizer.withDefaults())
-                .csrf(csrf -> csrf.disable())
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .httpBasic(Customizer.withDefaults())
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.POST, "/api/login").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/email/verify").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/password/forgot").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/password/reset").permitAll()
-                        .requestMatchers("/api/admin/**").hasRole("SUPER")
-                        .requestMatchers("/api/password/change-link").authenticated()
-                        .requestMatchers("/developer").hasAnyRole("DEVELOPER", "SUPER")
-                        .requestMatchers("/user").hasAnyRole("USER", "SUPER")
-                        .anyRequest().authenticated()
-                );
-        return http.build();
-    }
 
-    @Bean
-    PasswordEncoder passwordEncoder() {
-        return new Pbkdf2SaltedPasswordEncoder();
-    }
+	@Bean
+	SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+		http
+		.cors(Customizer.withDefaults())
+		.csrf(csrf -> csrf
+				.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+				.ignoringRequestMatchers(
+						"/api/login",
+						"/api/email/verify",
+						"/api/password/forgot",
+						"/api/password/reset"
+						)
+				)
+		.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+		.httpBasic(Customizer.withDefaults())
+		.authorizeHttpRequests(auth -> auth
+				.requestMatchers(HttpMethod.POST, "/api/login").permitAll()
+				.requestMatchers(HttpMethod.GET, "/api/email/verify").permitAll()
+				.requestMatchers(HttpMethod.POST, "/api/password/forgot").permitAll()
+				.requestMatchers(HttpMethod.POST, "/api/password/reset").permitAll()
+				.requestMatchers("/api/admin/**").hasRole("SUPER")
+				.requestMatchers("/api/password/change-link").authenticated()
+				.requestMatchers("/developer").hasAnyRole("DEVELOPER", "SUPER")
+				.requestMatchers("/user").hasAnyRole("USER", "SUPER")
+				.anyRequest().authenticated()
+				);
 
-    @Bean
-    AuthenticationManager authenticationManager(UserDetailsService userDetailsService, PasswordEncoder passwordEncoder) {
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-        provider.setUserDetailsService(userDetailsService);
-        provider.setPasswordEncoder(passwordEncoder);
-        return new ProviderManager(provider);
-    }
+		return http.build();
+	}
 
-    @Bean
-    CorsConfigurationSource corsConfigurationSource() {
-        return new CorsConfigurationSource() {
-            @Override
-            public CorsConfiguration getCorsConfiguration(HttpServletRequest request) {
-                CorsConfiguration config = new CorsConfiguration();
-                List<String> origins = Arrays.stream(allowedOrigins.split(","))
-                        .map(String::trim)
-                        .filter(origin -> !origin.isBlank())
-                        .toList();
+	@Bean
+	PasswordEncoder passwordEncoder() {
+		return new Pbkdf2SaltedPasswordEncoder();
+	}
 
-                config.setAllowedOrigins(origins);
-                config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-                config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
-                config.setAllowCredentials(true);
-                return config;
-            }
-        };
-    }
+	@Bean
+	AuthenticationManager authenticationManager(UserDetailsService userDetailsService, PasswordEncoder passwordEncoder) {
+		DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+		provider.setUserDetailsService(userDetailsService);
+		provider.setPasswordEncoder(passwordEncoder);
+		return new ProviderManager(provider);
+	}
+
+	@Bean
+	CorsConfigurationSource corsConfigurationSource() {
+		return new CorsConfigurationSource() {
+			@Override
+			public CorsConfiguration getCorsConfiguration(HttpServletRequest request) {
+				CorsConfiguration config = new CorsConfiguration();
+				List<String> origins = Arrays.stream(allowedOrigins.split(","))
+						.map(String::trim)
+						.filter(origin -> !origin.isBlank())
+						.toList();
+
+				config.setAllowedOrigins(origins);
+				config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+				config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+				config.setAllowCredentials(true);
+				return config;
+			}
+		};
+	}
 }

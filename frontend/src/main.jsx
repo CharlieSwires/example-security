@@ -8,29 +8,52 @@ const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8080/Example
 function basicAuthHeader(username, password) {
   return `Basic ${btoa(`${username}:${password}`)}`;
 }
+function getCookie(name) {
+  return document.cookie
+    .split('; ')
+    .find(row => row.startsWith(name + '='))
+    ?.split('=')[1];
+}
 
 async function apiFetch(path, options = {}, credentials = null) {
+  const method = (options.method ?? 'GET').toUpperCase();
+
   const headers = {
     'Content-Type': 'application/json',
     ...(options.headers ?? {})
   };
 
+  const csrfToken = getCookie('XSRF-TOKEN');
+  if (csrfToken && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+    headers['X-XSRF-TOKEN'] = decodeURIComponent(csrfToken);
+  }
+
   if (credentials) {
     headers.Authorization = basicAuthHeader(credentials.username, credentials.password);
   }
 
-  const response = await fetch(`${API_BASE}${path}`, { ...options, headers });
+ 
+	const response = await fetch(`${API_BASE}${path}`, {
+	  ...options,
+	  method,
+	  headers,
+	  credentials: 'include'
+	});
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `${response.status} ${response.statusText}`);
-  }
+	if (!response.ok) {
+	  const text = await response.text();
+	  throw new Error(text || `${response.status} ${response.statusText}`);
+	}
 
-  if (response.status === 204) return null;
-  const contentType = response.headers.get('content-type') ?? '';
-  return contentType.includes('application/json') ? response.json() : response.text();
+	if (response.status === 204) {
+	  return null;
+	}
+
+	const contentType = response.headers.get('content-type') ?? '';
+	return contentType.includes('application/json')
+	  ? response.json()
+	  : response.text();
 }
-
 function routeFromLocation() {
   const path = window.location.pathname;
   const params = new URLSearchParams(window.location.search);
@@ -60,7 +83,11 @@ function LoginScreen({ onLogin, onForgotPassword }) {
         method: 'POST',
         body: JSON.stringify({ username, password })
       });
-      onLogin({ username, password, roles: auth.roles });
+	  onLogin({
+	    username,
+	    password,
+	    roles: auth.roles ?? []
+	  });
     } catch (err) {
       setError('Login failed. Check the username/password and that the backend is running.');
     } finally {
@@ -186,9 +213,10 @@ function ResetPasswordScreen({ token, onBackToLogin }) {
 }
 
 function Dashboard({ session, onLogout }) {
-  const isSuper = session.roles.includes('SUPER');
-  const isDeveloper = session.roles.includes('DEVELOPER') || isSuper;
-  const isUser = session.roles.includes('USER') || isSuper;
+  const roles = session?.roles ?? [];
+  const isSuper = roles.includes('SUPER');
+  const isDeveloper = roles.includes('DEVELOPER') || isSuper;
+  const isUser = roles.includes('USER') || isSuper;
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -217,7 +245,7 @@ function Dashboard({ session, onLogout }) {
       <div className="container py-4">
         <div className="p-4 bg-light rounded-4 border mb-4">
           <h1 className="h3 fw-bold">Role dashboard</h1>
-          <p className="mb-2">Your roles: {session.roles.map(roleBadge)}</p>
+          <p className="mb-2">Your roles: {roles.map(roleBadge)}</p>
           <button className="btn btn-outline-secondary btn-sm" onClick={sendPasswordChangeLink}>Email me a change password link</button>
           {message && <div className="alert alert-success mt-3 mb-0">{message}</div>}
           {error && <div className="alert alert-danger mt-3 mb-0">{error}</div>}
