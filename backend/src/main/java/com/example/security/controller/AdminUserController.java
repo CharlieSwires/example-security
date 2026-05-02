@@ -7,6 +7,8 @@ import com.example.security.dto.UpdateRolesRequest;
 import com.example.security.dto.UserDto;
 import com.example.security.service.UserService;
 import org.springframework.web.bind.annotation.*;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.security.core.Authentication;
 
 import java.util.List;
 
@@ -20,10 +22,18 @@ public class AdminUserController {
     }
 
     @GetMapping
-    public List<UserDto> allUsers() {
+    public List<UserDto> allUsers(Authentication authentication, HttpServletRequest request) {
+        System.out.println();
+        System.out.println("========== ADMIN USERS ==========");
+        System.out.println("SESSION: " +
+                (request.getSession(false) == null ? "none" : request.getSession(false).getId()));
+        System.out.println("AUTH: " + authentication);
+        System.out.println("AUTHORITIES: " + authentication.getAuthorities());
+        System.out.println("=================================");
+        System.out.println();
+
         return userService.findAllUsers();
     }
-
     @PostMapping
     public UserDto createUser(@RequestBody CreateUserRequest request) {
         return userService.toDto(userService.createUser(request.username(), request.password(), request.email(), request.roles()));

@@ -20,13 +20,12 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE: ${VITE_API_BASE:-http://localhost:8080/ExampleSecurity}
+        VITE_API_BASE: https://localhost:8080/ExampleSecurity
     container_name: example-security-frontend
     ports:
-      - "5173:80"
+      - "5173:443"
     depends_on:
       - backend
-
   mongo:
     image: mongo:7
     container_name: example-security-mongo

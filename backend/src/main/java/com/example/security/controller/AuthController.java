@@ -12,6 +12,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.bind.annotation.*;
+import jakarta.servlet.http.HttpSession;
 
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -40,16 +41,35 @@ public class AuthController {
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse
     ) {
+        System.out.println();
+        System.out.println("========== LOGIN START ==========");
+        System.out.println("LOGIN USERNAME: " + request.username());
+        System.out.println("SESSION BEFORE LOGIN: " +
+                (httpRequest.getSession(false) == null ? "none" : httpRequest.getSession(false).getId()));
+
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.username(), request.password())
         );
+
+        System.out.println("AUTHENTICATION SUCCESS: " + authentication.getName());
+        System.out.println("AUTHENTICATION AUTHORITIES: " + authentication.getAuthorities());
 
         sessionAuthenticationStrategy.onAuthentication(authentication, httpRequest, httpResponse);
 
         SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
         securityContext.setAuthentication(authentication);
         SecurityContextHolder.setContext(securityContext);
+
+        HttpSession session = httpRequest.getSession(true);
+        System.out.println("SESSION CREATED/FETCHED: " + session.getId());
+
         securityContextRepository.saveContext(securityContext, httpRequest, httpResponse);
+
+        System.out.println("SECURITY CONTEXT SAVED");
+        System.out.println("SESSION AFTER LOGIN: " +
+                (httpRequest.getSession(false) == null ? "none" : httpRequest.getSession(false).getId()));
+        System.out.println("========== LOGIN END ==========");
+        System.out.println();
 
         Set<String> roles = authentication.getAuthorities()
                 .stream()
@@ -58,9 +78,17 @@ public class AuthController {
 
         return new AuthResponse(authentication.getName(), roles);
     }
-
     @GetMapping("/me")
-    public AuthResponse me(Authentication authentication) {
+    public AuthResponse me(Authentication authentication, HttpServletRequest request) {
+        System.out.println();
+        System.out.println("========== /api/me ==========");
+        System.out.println("SESSION: " +
+                (request.getSession(false) == null ? "none" : request.getSession(false).getId()));
+        System.out.println("AUTH: " + authentication);
+        System.out.println("AUTHORITIES: " + authentication.getAuthorities());
+        System.out.println("=============================");
+        System.out.println();
+
         Set<String> roles = authentication.getAuthorities()
                 .stream()
                 .map(authority -> authority.getAuthority().replace("ROLE_", ""))

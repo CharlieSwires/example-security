@@ -6,12 +6,16 @@ import './styles.css';
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'https://localhost:8080/ExampleSecurity';
 
 function getCookie(name) {
-  return document.cookie
+  const cookies = document.cookie
     .split('; ')
-    .find(row => row.startsWith(name + '='))
-    ?.split('=')[1];
-}
+    .filter(row => row.startsWith(name + '='));
 
+  if (cookies.length === 0) {
+    return undefined;
+  }
+
+  return cookies[cookies.length - 1].split('=')[1];
+}
 async function ensureCsrfToken() {
   const existing = getCookie('XSRF-TOKEN');
   if (existing) {

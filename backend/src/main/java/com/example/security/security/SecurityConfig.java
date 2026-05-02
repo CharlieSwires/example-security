@@ -5,6 +5,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -21,6 +26,7 @@ import org.springframework.security.web.context.HttpSessionSecurityContextReposi
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 
@@ -39,14 +45,45 @@ public class SecurityConfig {
         CsrfTokenRequestAttributeHandler csrfRequestHandler = new CsrfTokenRequestAttributeHandler();
         csrfRequestHandler.setCsrfRequestAttributeName(null);
 
+        CookieCsrfTokenRepository csrfRepository = CookieCsrfTokenRepository.withHttpOnlyFalse();
+        csrfRepository.setCookiePath("/");
+
         http
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf
                         .csrfTokenRequestHandler(csrfRequestHandler)
-                        .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                        .csrfTokenRepository(csrfRepository)
                         .ignoringRequestMatchers(
-                                "/api/email/verify"
+                                new AntPathRequestMatcher("/api/login", "POST"),
+                                new AntPathRequestMatcher("/api/logout", "POST"),
+                                new AntPathRequestMatcher("/api/email/verify", "GET"),
+                                new AntPathRequestMatcher("/api/password/forgot", "POST"),
+                                new AntPathRequestMatcher("/api/password/reset", "POST")
                         )
+                )
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((request, response, authException) ->
+                                response.sendError(HttpStatus.UNAUTHORIZED.value())
+                        )
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+                            System.out.println();
+                            System.out.println("========== ACCESS DENIED ==========");
+                            System.out.println("METHOD: " + request.getMethod());
+                            System.out.println("URI: " + request.getRequestURI());
+                            System.out.println("SESSION: " +
+                                    (request.getSession(false) == null ? "none" : request.getSession(false).getId()));
+                            System.out.println("COOKIE HEADER: " + request.getHeader("Cookie"));
+                            System.out.println("X-XSRF-TOKEN HEADER PRESENT: " + (request.getHeader("X-XSRF-TOKEN") != null));
+                            System.out.println("AUTH: " + authentication);
+                            System.out.println("DENIED REASON: " + accessDeniedException.getClass().getName());
+                            System.out.println("DENIED MESSAGE: " + accessDeniedException.getMessage());
+                            System.out.println("===================================");
+                            System.out.println();
+
+                            response.sendError(HttpStatus.FORBIDDEN.value());
+                        })
                 )
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
@@ -57,6 +94,9 @@ public class SecurityConfig {
                 )
                 .logout(logout -> logout
                         .logoutUrl("/api/logout")
+                        .logoutSuccessHandler((request, response, authentication) ->
+                                response.setStatus(HttpStatus.NO_CONTENT.value())
+                        )
                         .deleteCookies("JSESSIONID", "XSRF-TOKEN")
                         .invalidateHttpSession(true)
                         .clearAuthentication(true)
@@ -67,6 +107,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/email/verify").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/password/forgot").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/password/reset").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/me").authenticated()
                         .requestMatchers("/api/admin/**").hasRole("SUPER")
                         .requestMatchers("/api/password/change-link").authenticated()
                         .requestMatchers("/developer").hasAnyRole("DEVELOPER", "SUPER")
@@ -117,7 +158,7 @@ public class SecurityConfig {
 
                 config.setAllowedOrigins(origins);
                 config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-                config.setAllowedHeaders(List.of("X-XSRF-TOKEN", "Content-Type"));
+                config.setAllowedHeaders(List.of("X-XSRF-TOKEN", "Content-Type", "Authorization"));
                 config.setExposedHeaders(List.of("X-XSRF-TOKEN"));
                 config.setAllowCredentials(true);
 
@@ -125,4 +166,5 @@ public class SecurityConfig {
             }
         };
     }
+    
 }
