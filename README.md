@@ -42,7 +42,9 @@ CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
 ```
 
 ### application.yml file
+
 Set your MongoDB Atlas URI.
+
 ```text
 server:
   port: 8080
