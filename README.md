@@ -25,26 +25,66 @@ Spring Boot + Spring Security + MongoDB Atlas + React example.
 
 ## Backend setup
 
+###env.list file
+```text
+MAIL_HOST=
+MAIL_PORT=
+MAIL_USERNAME=
+MAIL_PASSWORD=
+MAIL_FROM=
+MAIL_SMTP_AUTH=true
+MAIL_SMTP_STARTTLS=true
+FRONTEND_BASE_URL=http://localhost:5173
+BACKEND_BASE_URL=http://localhost:8080/ExampleSecurity
+INITIAL_SUPER_USERNAME=super
+INITIAL_SUPER_PASSWORD=ChangeThisPassword123!
+CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
+```
+
+###application.yml file
+Set your MongoDB Atlas URI.
+```text
+server:
+  port: 8080
+  servlet:
+    context-path: /ExampleSecurity
+  ssl:
+    enabled: ${SSL_ENABLED:false}
+    key-store: ${SSL_KEYSTORE:classpath:keystore.p12}
+    key-store-password: ${SSL_KEYSTORE_PASSWORD:changeit}
+    key-store-type: PKCS12
+    key-alias: ${SSL_KEY_ALIAS:examplesecurity}
+
+spring:
+  data:
+    mongodb:
+      uri: mongodb+srv://DBUSER:PASSWORD@cluster0.icebq.mongodb.net/example_security
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:false}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS:false}
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,https://localhost:5173}
+  frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
+  backend-base-url: ${BACKEND_BASE_URL:http://localhost:8080/ExampleSecurity}
+  mail:
+    from: ${MAIL_FROM:no-reply@example-security.local}
+  initial-super:
+    username: super
+    password: ChangeThisPassword123!
+```
+
 ```bash
 cd backend
-```
-
-Set your MongoDB Atlas URI.
-
-### Windows PowerShell
-
-```powershell
-$env:MONGODB_URI="mongodb+srv://USERNAME:PASSWORD@cluster.example.mongodb.net/example_security?retryWrites=true&w=majority"
-$env:INITIAL_SUPER_USERNAME="super"
-$env:INITIAL_SUPER_PASSWORD="ChangeThisPassword123!"
-```
-
-### Git Bash / Linux
-
-```bash
-export MONGODB_URI='mongodb+srv://USERNAME:PASSWORD@cluster.example.mongodb.net/example_security?retryWrites=true&w=majority'
-export INITIAL_SUPER_USERNAME='super'
-export INITIAL_SUPER_PASSWORD='ChangeThisPassword123!'
 ```
 
 Run:
