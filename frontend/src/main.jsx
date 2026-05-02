@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './styles.css';
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8080/ExampleSecurity';
+const API_BASE = import.meta.env.VITE_API_BASE ?? 'https://localhost:8080/ExampleSecurity';
 
 function getCookie(name) {
   return document.cookie
