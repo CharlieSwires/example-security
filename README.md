@@ -25,7 +25,7 @@ Spring Boot + Spring Security + MongoDB Atlas + React example.
 
 ## Backend setup
 
-###env.list file
+### env.list file
 ```text
 MAIL_HOST=
 MAIL_PORT=
@@ -41,7 +41,7 @@ INITIAL_SUPER_PASSWORD=ChangeThisPassword123!
 CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
 ```
 
-###application.yml file
+### application.yml file
 Set your MongoDB Atlas URI.
 ```text
 server:
