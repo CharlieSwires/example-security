@@ -164,3 +164,22 @@ Request body:
 ```
 
 The password is not stored directly. The backend creates a new salt and stores only the new PBKDF2 hash and salt.
+
+
+## Email verification and password reset
+
+This ZIP includes verified-email and password-reset support.
+
+See:
+
+```text
+README-Email-Password-Reset.md
+```
+
+For local Docker testing, Mailpit is included. After `docker compose up --build`, open:
+
+```text
+http://localhost:8025
+```
+
+to see verification and reset emails.

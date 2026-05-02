@@ -12,7 +12,6 @@ import java.util.Set;
 
 @SpringBootApplication
 public class ExampleSecurityApplication {
-
     public static void main(String[] args) {
         SpringApplication.run(ExampleSecurityApplication.class, args);
     }
@@ -25,7 +24,7 @@ public class ExampleSecurityApplication {
     ) {
         return args -> {
             if (userService.findByUsername(username).isEmpty()) {
-                userService.createUser(username, password, Set.of(Role.SUPER));
+                userService.createUser(username, password, null, Set.of(Role.SUPER));
                 System.out.println("Created initial SUPER user: " + username);
             }
         };

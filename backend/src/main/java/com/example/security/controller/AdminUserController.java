@@ -1,6 +1,7 @@
 package com.example.security.controller;
 
 import com.example.security.dto.CreateUserRequest;
+import com.example.security.dto.UpdateEmailRequest;
 import com.example.security.dto.UpdatePasswordRequest;
 import com.example.security.dto.UpdateRolesRequest;
 import com.example.security.dto.UserDto;
@@ -12,7 +13,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/admin/users")
 public class AdminUserController {
-
     private final UserService userService;
 
     public AdminUserController(UserService userService) {
@@ -26,9 +26,7 @@ public class AdminUserController {
 
     @PostMapping
     public UserDto createUser(@RequestBody CreateUserRequest request) {
-        return userService.toDto(
-                userService.createUser(request.username(), request.password(), request.roles())
-        );
+        return userService.toDto(userService.createUser(request.username(), request.password(), request.email(), request.roles()));
     }
 
     @PutMapping("/{username}/roles")
@@ -39,6 +37,11 @@ public class AdminUserController {
     @PutMapping("/{username}/password")
     public UserDto updatePassword(@PathVariable String username, @RequestBody UpdatePasswordRequest request) {
         return userService.updatePassword(username, request.password());
+    }
+
+    @PutMapping("/{username}/email")
+    public UserDto proposeEmail(@PathVariable String username, @RequestBody UpdateEmailRequest request) {
+        return userService.proposeEmail(username, request.email());
     }
 
     @DeleteMapping("/{username}")

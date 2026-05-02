@@ -24,7 +24,6 @@ import java.util.List;
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
-
     @Value("${app.cors.allowed-origins}")
     private String allowedOrigins;
 
@@ -37,12 +36,15 @@ public class SecurityConfig {
                 .httpBasic(Customizer.withDefaults())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/login").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/email/verify").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/password/forgot").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/password/reset").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("SUPER")
+                        .requestMatchers("/api/password/change-link").authenticated()
                         .requestMatchers("/developer").hasAnyRole("DEVELOPER", "SUPER")
                         .requestMatchers("/user").hasAnyRole("USER", "SUPER")
                         .anyRequest().authenticated()
                 );
-
         return http.build();
     }
 
@@ -52,10 +54,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    AuthenticationManager authenticationManager(
-            UserDetailsService userDetailsService,
-            PasswordEncoder passwordEncoder
-    ) {
+    AuthenticationManager authenticationManager(UserDetailsService userDetailsService, PasswordEncoder passwordEncoder) {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
         provider.setUserDetailsService(userDetailsService);
         provider.setPasswordEncoder(passwordEncoder);
@@ -68,7 +67,6 @@ public class SecurityConfig {
             @Override
             public CorsConfiguration getCorsConfiguration(HttpServletRequest request) {
                 CorsConfiguration config = new CorsConfiguration();
-
                 List<String> origins = Arrays.stream(allowedOrigins.split(","))
                         .map(String::trim)
                         .filter(origin -> !origin.isBlank())
@@ -78,7 +76,6 @@ public class SecurityConfig {
                 config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
                 config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
                 config.setAllowCredentials(true);
-
                 return config;
             }
         };

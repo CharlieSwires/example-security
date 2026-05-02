@@ -57,14 +57,12 @@ Set `MONGODB_URI` before starting Docker Compose.
 ### Windows PowerShell
 
 ```powershell
-$env:MONGODB_URI="mongodb+srv://USERNAME:PASSWORD@cluster.example.mongodb.net/example_security?retryWrites=true&w=majority"
 docker compose up --build
 ```
 
 ### Git Bash / Linux / macOS
 
 ```bash
-export MONGODB_URI='mongodb+srv://USERNAME:PASSWORD@cluster.example.mongodb.net/example_security?retryWrites=true&w=majority'
 docker compose up --build
 ```
 

@@ -1,3 +1,4 @@
 application.yml
 target
 node_modules
+env.list
