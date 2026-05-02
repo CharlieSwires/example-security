@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -48,6 +49,11 @@ public class SecurityConfig {
                                 "/api/email/verify"
                         )
                 )
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((request, response, authException) ->
+                                response.sendError(HttpStatus.UNAUTHORIZED.value())
+                        )
+                )
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                         .sessionAuthenticationStrategy(sessionAuthenticationStrategy())
@@ -57,6 +63,9 @@ public class SecurityConfig {
                 )
                 .logout(logout -> logout
                         .logoutUrl("/api/logout")
+                        .logoutSuccessHandler((request, response, authentication) ->
+                                response.setStatus(HttpStatus.NO_CONTENT.value())
+                        )
                         .deleteCookies("JSESSIONID", "XSRF-TOKEN")
                         .invalidateHttpSession(true)
                         .clearAuthentication(true)
@@ -67,6 +76,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/email/verify").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/password/forgot").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/password/reset").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/me").authenticated()
                         .requestMatchers("/api/admin/**").hasRole("SUPER")
                         .requestMatchers("/api/password/change-link").authenticated()
                         .requestMatchers("/developer").hasAnyRole("DEVELOPER", "SUPER")
