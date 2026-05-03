@@ -28,28 +28,59 @@ Spring Boot + Spring Security + MongoDB Atlas + React example.
 ### env.list file
 
 ```text
-MAIL_HOST=
-MAIL_PORT=
-MAIL_USERNAME=
-MAIL_PASSWORD=
-MAIL_FROM=
-MAIL_SMTP_AUTH=true
-MAIL_SMTP_STARTTLS=true
-FRONTEND_BASE_URL=http://localhost:5173
-BACKEND_BASE_URL=http://localhost:8080/ExampleSecurity
+# Copy this to env.list and fill in real values. Do not commit env.list.
+
+MONGODB_URI=mongodb://mongo:27017/example_security
 INITIAL_SUPER_USERNAME=super
 INITIAL_SUPER_PASSWORD=ChangeThisPassword123!
-CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
+
+# HTTPS local frontend/backend setup
+SSL_ENABLED=true
+SSL_KEYSTORE_PASSWORD=changeit
+SSL_KEY_ALIAS=examplesecurity
+SESSION_COOKIE_SECURE=true
+SESSION_COOKIE_SAME_SITE=lax
+CORS_ALLOWED_ORIGINS=https://localhost:5173
+FRONTEND_BASE_URL=https://localhost:5173
+BACKEND_BASE_URL=https://localhost:8080/ExampleSecurity
+
+# Local Mailpit defaults
+MAIL_HOST=mailpit
+MAIL_PORT=1025
+MAIL_USERNAME=
+MAIL_PASSWORD=
+MAIL_FROM=no-reply@example-security.local
+MAIL_SMTP_AUTH=false
+MAIL_SMTP_STARTTLS=false
+
+# Login throttling / brute-force protection
+LOGIN_MAX_USER_IP_FAILURES=5
+LOGIN_MAX_IP_FAILURES=25
+LOGIN_FAILURE_WINDOW_MINUTES=15
+LOGIN_LOCKOUT_MINUTES=15
+
+SECURITY_AUDIT_PERSIST=true
+
+LOGIN_THROTTLE_PERSISTENT=true
+
+SESSION_TIMEOUT=30m
+
+SECURITY_DEBUG_REQUEST_LOGGING=false
 ```
 
 ### application.yml file
-Set your MongoDB Atlas URI.
 
 ```yaml
 server:
   port: 8080
   servlet:
     context-path: /ExampleSecurity
+    session:
+      timeout: ${SESSION_TIMEOUT:30m}
+      cookie:
+        http-only: true
+        secure: ${SESSION_COOKIE_SECURE:false}
+        same-site: ${SESSION_COOKIE_SAME_SITE:lax}
   ssl:
     enabled: ${SSL_ENABLED:false}
     key-store: ${SSL_KEYSTORE:classpath:keystore.p12}
@@ -60,7 +91,7 @@ server:
 spring:
   data:
     mongodb:
-      uri: mongodb+srv://DBUSER:PASSWORD@cluster0.icebq.mongodb.net/example_security
+      uri: ${MONGODB_URI:mongodb://localhost:27017/example_security}
   mail:
     host: ${MAIL_HOST:localhost}
     port: ${MAIL_PORT:1025}
@@ -76,13 +107,23 @@ spring:
 app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,https://localhost:5173}
-  frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
-  backend-base-url: ${BACKEND_BASE_URL:http://localhost:8080/ExampleSecurity}
+  frontend-base-url: ${FRONTEND_BASE_URL:https://localhost:5173}
+  backend-base-url: ${BACKEND_BASE_URL:https://localhost:8080/ExampleSecurity}
   mail:
     from: ${MAIL_FROM:no-reply@example-security.local}
   initial-super:
-    username: super
-    password: ChangeThisPassword123!
+    username: ${INITIAL_SUPER_USERNAME:super}
+    password: ${INITIAL_SUPER_PASSWORD:ChangeThisPassword123!}
+  security:
+    debug-request-logging: ${SECURITY_DEBUG_REQUEST_LOGGING:false}
+    audit:
+      persist: ${SECURITY_AUDIT_PERSIST:true}
+    login:
+      persistent: ${LOGIN_THROTTLE_PERSISTENT:true}
+      max-user-ip-failures: ${LOGIN_MAX_USER_IP_FAILURES:5}
+      max-ip-failures: ${LOGIN_MAX_IP_FAILURES:25}
+      failure-window-minutes: ${LOGIN_FAILURE_WINDOW_MINUTES:15}
+      lockout-minutes: ${LOGIN_LOCKOUT_MINUTES:15}
 ```
 
 ```bash
