@@ -68,63 +68,6 @@ SESSION_TIMEOUT=30m
 SECURITY_DEBUG_REQUEST_LOGGING=false
 ```
 
-### application.yml file
-
-```yaml
-server:
-  port: 8080
-  servlet:
-    context-path: /ExampleSecurity
-    session:
-      timeout: ${SESSION_TIMEOUT:30m}
-      cookie:
-        http-only: true
-        secure: ${SESSION_COOKIE_SECURE:false}
-        same-site: ${SESSION_COOKIE_SAME_SITE:lax}
-  ssl:
-    enabled: ${SSL_ENABLED:false}
-    key-store: ${SSL_KEYSTORE:classpath:keystore.p12}
-    key-store-password: ${SSL_KEYSTORE_PASSWORD:changeit}
-    key-store-type: PKCS12
-    key-alias: ${SSL_KEY_ALIAS:examplesecurity}
-
-spring:
-  data:
-    mongodb:
-      uri: ${MONGODB_URI:mongodb://localhost:27017/example_security}
-  mail:
-    host: ${MAIL_HOST:localhost}
-    port: ${MAIL_PORT:1025}
-    username: ${MAIL_USERNAME:}
-    password: ${MAIL_PASSWORD:}
-    properties:
-      mail:
-        smtp:
-          auth: ${MAIL_SMTP_AUTH:false}
-          starttls:
-            enable: ${MAIL_SMTP_STARTTLS:false}
-
-app:
-  cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,https://localhost:5173}
-  frontend-base-url: ${FRONTEND_BASE_URL:https://localhost:5173}
-  backend-base-url: ${BACKEND_BASE_URL:https://localhost:8080/ExampleSecurity}
-  mail:
-    from: ${MAIL_FROM:no-reply@example-security.local}
-  initial-super:
-    username: ${INITIAL_SUPER_USERNAME:super}
-    password: ${INITIAL_SUPER_PASSWORD:ChangeThisPassword123!}
-  security:
-    debug-request-logging: ${SECURITY_DEBUG_REQUEST_LOGGING:false}
-    audit:
-      persist: ${SECURITY_AUDIT_PERSIST:true}
-    login:
-      persistent: ${LOGIN_THROTTLE_PERSISTENT:true}
-      max-user-ip-failures: ${LOGIN_MAX_USER_IP_FAILURES:5}
-      max-ip-failures: ${LOGIN_MAX_IP_FAILURES:25}
-      failure-window-minutes: ${LOGIN_FAILURE_WINDOW_MINUTES:15}
-      lockout-minutes: ${LOGIN_LOCKOUT_MINUTES:15}
-```
 
 ```bash
 cd backend
