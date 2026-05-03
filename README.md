@@ -247,3 +247,8 @@ See:
 ```text
 README-Session-Cookie-CSRF.md
 ```
+
+
+## Login throttling
+
+This package includes in-memory login throttling to slow brute-force attempts. See `README-Login-Throttling.md`.

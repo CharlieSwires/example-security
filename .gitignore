@@ -1,7 +1,22 @@
-application.yml
-target
-node_modules
+# Build output
+target/
+node_modules/
+dist/
+
+# Local environment/secrets
 env.list
-keystore.crt
-keystore.key
-keystore.p12
+.env
+
+# Local certificates / keystores - never commit
+*.p12
+*.jks
+*.key
+*.crt
+*.pem
+backend/src/main/resources/keystore.p12
+frontend/certs/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
