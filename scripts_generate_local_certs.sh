@@ -4,6 +4,7 @@ set -euo pipefail
 PASSWORD="${1:-changeit}"
 ALIAS="examplesecurity"
 
+rm -f backend/src/main/resources/keystore.* frontend/certs/keystore.*
 mkdir -p backend/src/main/resources frontend/certs
 
 keytool -genkeypair \
