@@ -11,4 +11,5 @@ public interface UserRepository extends MongoRepository<AppUser, String> {
     Optional<AppUser> findByEmailVerificationTokenHash(String emailVerificationTokenHash);
     Optional<AppUser> findByPasswordResetTokenHash(String passwordResetTokenHash);
     Optional<AppUser> deleteByUsername(String username);
+    long countByRolesContaining(com.example.security.model.Role role);
 }

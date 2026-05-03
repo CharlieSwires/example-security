@@ -32,6 +32,7 @@ public class UserService {
     private static final int KEY_LENGTH_BITS = 256;
     private static final Duration EMAIL_TOKEN_LIFETIME = Duration.ofHours(24);
     private static final Duration PASSWORD_RESET_TOKEN_LIFETIME = Duration.ofMinutes(30);
+    private static final int MIN_PASSWORD_LENGTH = 12;
 
     static {
         Security.addProvider(new BouncyCastleProvider());
@@ -55,7 +56,7 @@ public class UserService {
 
     public AppUser createUser(String username, String password, String proposedEmail, Set<Role> roles) {
         if (username == null || username.isBlank()) throw new IllegalArgumentException("Username is required");
-        if (password == null || password.isBlank()) throw new IllegalArgumentException("Password is required");
+        validatePassword(password);
         if (userRepository.findByUsername(username).isPresent()) throw new IllegalArgumentException("Username already exists");
 
         byte[] salt = newSalt();
@@ -83,12 +84,17 @@ public class UserService {
 
     public UserDto updateRoles(String username, Set<Role> roles) {
         AppUser user = userRepository.findByUsername(username).orElseThrow(() -> new IllegalArgumentException("User not found: " + username));
-        user.setRoles(roles == null || roles.isEmpty() ? Set.of(Role.USER) : roles);
+        Set<Role> nextRoles = roles == null || roles.isEmpty() ? Set.of(Role.USER) : roles;
+        if (user.getRoles().contains(Role.SUPER) && !nextRoles.contains(Role.SUPER)
+                && userRepository.countByRolesContaining(Role.SUPER) <= 1) {
+            throw new IllegalArgumentException("Cannot remove SUPER from the last SUPER user");
+        }
+        user.setRoles(nextRoles);
         return toDto(userRepository.save(user));
     }
 
     public UserDto updatePassword(String username, String newPassword) {
-        if (newPassword == null || newPassword.isBlank()) throw new IllegalArgumentException("Password is required");
+        validatePassword(newPassword);
         AppUser user = userRepository.findByUsername(username).orElseThrow(() -> new IllegalArgumentException("User not found: " + username));
         setPassword(user, newPassword);
         user.setPasswordResetTokenHash(null);
@@ -165,6 +171,7 @@ public class UserService {
 
     public boolean resetPasswordWithToken(String rawToken, String newPassword) {
         if (rawToken == null || rawToken.isBlank() || newPassword == null || newPassword.isBlank()) return false;
+        if (!isPasswordAcceptable(newPassword)) return false;
         Optional<AppUser> found = userRepository.findByPasswordResetTokenHash(hashToken(rawToken));
         if (found.isEmpty()) return false;
 
@@ -179,11 +186,27 @@ public class UserService {
     }
 
     public void deleteByUsername(String username) {
+        AppUser user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found: " + username));
+        if (user.getRoles().contains(Role.SUPER) && userRepository.countByRolesContaining(Role.SUPER) <= 1) {
+            throw new IllegalArgumentException("Cannot delete the last SUPER user");
+        }
         userRepository.deleteByUsername(username);
     }
 
     public UserDto toDto(AppUser user) {
         return new UserDto(user.getId(), user.getUsername(), user.getEmail(), user.isEmailVerified(), user.getPendingEmail(), user.getRoles());
+    }
+
+
+    private void validatePassword(String password) {
+        if (!isPasswordAcceptable(password)) {
+            throw new IllegalArgumentException("Password must be at least " + MIN_PASSWORD_LENGTH + " characters");
+        }
+    }
+
+    private boolean isPasswordAcceptable(String password) {
+        return password != null && password.length() >= MIN_PASSWORD_LENGTH;
     }
 
     private void setPassword(AppUser user, String newPassword) {

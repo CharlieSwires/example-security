@@ -3,6 +3,7 @@ package com.example.security.controller;
 import com.example.security.dto.AuthRequest;
 import com.example.security.dto.AuthResponse;
 import com.example.security.security.LoginAttemptService;
+import com.example.security.security.SecurityAuditService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -32,17 +34,20 @@ public class AuthController {
     private final SecurityContextRepository securityContextRepository;
     private final SessionAuthenticationStrategy sessionAuthenticationStrategy;
     private final LoginAttemptService loginAttemptService;
+    private final SecurityAuditService auditService;
 
     public AuthController(
             AuthenticationManager authenticationManager,
             SecurityContextRepository securityContextRepository,
             SessionAuthenticationStrategy sessionAuthenticationStrategy,
-            LoginAttemptService loginAttemptService
+            LoginAttemptService loginAttemptService,
+            SecurityAuditService auditService
     ) {
         this.authenticationManager = authenticationManager;
         this.securityContextRepository = securityContextRepository;
         this.sessionAuthenticationStrategy = sessionAuthenticationStrategy;
         this.loginAttemptService = loginAttemptService;
+        this.auditService = auditService;
     }
 
     @PostMapping("/login")
@@ -51,22 +56,16 @@ public class AuthController {
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse
     ) {
-        String clientIp = clientIp(httpRequest);
+        String clientIp = auditService.clientIp(httpRequest);
         String username = request.username() == null ? "" : request.username().trim();
 
         Optional<Duration> existingRetryAfter = loginAttemptService.retryAfter(username, clientIp);
         if (existingRetryAfter.isPresent()) {
             applyRetryAfter(httpResponse, existingRetryAfter.get());
+            auditService.record("LOGIN_THROTTLED", username, username, false, "pre_auth_lockout", httpRequest);
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
                     "Too many failed login attempts. Please wait and try again.");
         }
-
-        System.out.println();
-        System.out.println("========== LOGIN START ==========");
-        System.out.println("LOGIN USERNAME: " + username);
-        System.out.println("LOGIN CLIENT IP: " + clientIp);
-        System.out.println("SESSION BEFORE LOGIN: " +
-                (httpRequest.getSession(false) == null ? "none" : httpRequest.getSession(false).getId()));
 
         Authentication authentication;
         try {
@@ -78,18 +77,15 @@ public class AuthController {
             Optional<Duration> retryAfter = loginAttemptService.retryAfter(username, clientIp);
             if (retryAfter.isPresent()) {
                 applyRetryAfter(httpResponse, retryAfter.get());
-                System.out.println("LOGIN THROTTLED AFTER FAILURE for user=" + username + ", ip=" + clientIp);
+                auditService.record("LOGIN_THROTTLED", username, username, false, "failure_threshold_reached", httpRequest);
                 throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
                         "Too many failed login attempts. Please wait and try again.");
             }
-            System.out.println("AUTHENTICATION FAILED for user=" + username + ", ip=" + clientIp);
+            auditService.record("LOGIN_FAILURE", username, username, false, "bad_credentials", httpRequest);
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid username or password");
         }
 
         loginAttemptService.recordSuccessfulLogin(username, clientIp);
-
-        System.out.println("AUTHENTICATION SUCCESS: " + authentication.getName());
-        System.out.println("AUTHENTICATION AUTHORITIES: " + authentication.getAuthorities());
 
         sessionAuthenticationStrategy.onAuthentication(authentication, httpRequest, httpResponse);
 
@@ -98,15 +94,10 @@ public class AuthController {
         SecurityContextHolder.setContext(securityContext);
 
         HttpSession session = httpRequest.getSession(true);
-        System.out.println("SESSION CREATED/FETCHED: " + session.getId());
-
         securityContextRepository.saveContext(securityContext, httpRequest, httpResponse);
 
-        System.out.println("SECURITY CONTEXT SAVED");
-        System.out.println("SESSION AFTER LOGIN: " +
-                (httpRequest.getSession(false) == null ? "none" : httpRequest.getSession(false).getId()));
-        System.out.println("========== LOGIN END ==========");
-        System.out.println();
+        auditService.record("LOGIN_SUCCESS", authentication.getName(), authentication.getName(), true, "authenticated", httpRequest,
+                Map.of("session", session == null ? "none" : "created"));
 
         Set<String> roles = authentication.getAuthorities()
                 .stream()
@@ -117,16 +108,7 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public AuthResponse me(Authentication authentication, HttpServletRequest request) {
-        System.out.println();
-        System.out.println("========== /api/me ==========");
-        System.out.println("SESSION: " +
-                (request.getSession(false) == null ? "none" : request.getSession(false).getId()));
-        System.out.println("AUTH: " + authentication);
-        System.out.println("AUTHORITIES: " + authentication.getAuthorities());
-        System.out.println("=============================");
-        System.out.println();
-
+    public AuthResponse me(Authentication authentication) {
         Set<String> roles = authentication.getAuthorities()
                 .stream()
                 .map(authority -> authority.getAuthority().replace("ROLE_", ""))
@@ -138,13 +120,5 @@ public class AuthController {
     private void applyRetryAfter(HttpServletResponse response, Duration retryAfter) {
         long seconds = Math.max(1, retryAfter.toSeconds());
         response.setHeader(HttpHeaders.RETRY_AFTER, Long.toString(seconds));
-    }
-
-    private String clientIp(HttpServletRequest request) {
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
     }
 }

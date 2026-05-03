@@ -8,15 +8,13 @@ env.list
 .env
 
 # Local certificates / keystores - never commit
-*.7z
-*.zip
 *.p12
 *.jks
 *.key
 *.crt
 *.pem
-frontend/certs/
 backend/src/main/resources/keystore.p12
+frontend/certs/
 
 # IDE / OS
 .idea/
