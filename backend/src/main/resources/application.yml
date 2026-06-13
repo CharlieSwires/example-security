@@ -1,5 +1,6 @@
 server:
   port: 8080
+  forward-headers-strategy: framework
   servlet:
     context-path: /ExampleSecurity
     session:
@@ -19,6 +20,11 @@ spring:
   data:
     mongodb:
       uri: ${MONGODB_URI:mongodb://localhost:27017/example_security}
+  session:
+    store-type: mongodb
+    timeout: ${SESSION_TIMEOUT:30m}
+    mongodb:
+      collection-name: ${SESSION_COLLECTION_NAME:spring_sessions}
   mail:
     host: ${MAIL_HOST:localhost}
     port: ${MAIL_PORT:1025}
@@ -26,10 +32,11 @@ spring:
     password: ${MAIL_PASSWORD:}
     properties:
       mail:
+        debug: ${MAIL_DEBUG:false}
         smtp:
           auth: ${MAIL_SMTP_AUTH:false}
           starttls:
-            enable: ${MAIL_SMTP_STARTTLS:false}
+            enable: ${MAIL_SMTP_STARTTLS:true}
 
 app:
   cors:
@@ -51,3 +58,7 @@ app:
       max-ip-failures: ${LOGIN_MAX_IP_FAILURES:25}
       failure-window-minutes: ${LOGIN_FAILURE_WINDOW_MINUTES:15}
       lockout-minutes: ${LOGIN_LOCKOUT_MINUTES:15}
+logging:
+  level:
+    org.springframework.mail: DEBUG
+    jakarta.mail: DEBUG

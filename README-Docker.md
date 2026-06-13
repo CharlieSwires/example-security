@@ -1,26 +1,14 @@
 # Docker usage
 
-This adds container support for the `example-security` project.
+This project now supports duplicate frontend and backend containers behind a local Nginx load balancer.
+Backend login/session state is stored in MongoDB using Spring Session, so the containers do **not** need sticky sessions.
 
-## Files added
-
-```text
-example-security/
-├── .dockerignore
-├── docker-compose.yml
-├── backend/
-│   └── Dockerfile
-└── frontend/
-    ├── Dockerfile
-    └── nginx.conf
-```
-
-## Run everything locally
+## Run locally
 
 From the `example-security` folder:
 
 ```bash
-docker compose up --build
+docker compose up --build --scale backend=2 --scale frontend=2
 ```
 
 Then open:
@@ -29,7 +17,7 @@ Then open:
 http://localhost:5173
 ```
 
-The backend runs at:
+The backend API is exposed through the load balancer at:
 
 ```text
 http://localhost:8080/ExampleSecurity
@@ -42,54 +30,39 @@ username: super
 password: ChangeThisPassword123!
 ```
 
-## Using local MongoDB
+## Local MongoDB
 
-By default, Docker Compose starts a local MongoDB container and uses:
+The included `env.list` uses:
 
 ```text
-mongodb://mongo:27017/example_security
+MONGODB_URI=mongodb://mongo:27017/example_security
 ```
 
-## Using MongoDB Atlas instead
+Session documents are stored in:
 
-Set `MONGODB_URI` before starting Docker Compose.
-
-### Windows PowerShell
-
-```powershell
-$env:MONGODB_URI="mongodb+srv://USERNAME:PASSWORD@cluster.example.mongodb.net/example_security?retryWrites=true&w=majority"
-docker compose up --build
+```text
+spring_sessions
 ```
 
-### Git Bash / Linux / macOS
+## MongoDB Atlas
 
-```bash
-export MONGODB_URI='mongodb+srv://USERNAME:PASSWORD@cluster.example.mongodb.net/example_security?retryWrites=true&w=majority'
-docker compose up --build
+Replace `MONGODB_URI` in `env.list` with your Atlas connection string, for example:
+
+```text
+MONGODB_URI=mongodb+srv://USERNAME:PASSWORD@cluster.example.mongodb.net/example_security?retryWrites=true&w=majority
 ```
 
-You can remove the `mongo` service from `docker-compose.yml` if you only use MongoDB Atlas.
+For Atlas-only use, you may remove the `mongo` service from `docker-compose.yml`.
 
-## Build just the backend
+## Ports
 
-```bash
-cd backend
-docker build -t example-security-backend .
-docker run -p 8080:8080 -e MONGODB_URI="mongodb://host.docker.internal:27017/example_security" example-security-backend
+Only the load balancer publishes ports to the host:
+
+```text
+frontend load balancer: http://localhost:5173
+backend load balancer:  http://localhost:8080/ExampleSecurity
+mailpit UI:             http://localhost:8025
+mongo local port:       localhost:27017
 ```
 
-## Build just the frontend
-
-```bash
-cd frontend
-docker build -t example-security-frontend --build-arg VITE_API_BASE=http://localhost:8080/ExampleSecurity .
-docker run -p 5173:80 example-security-frontend
-```
-
-## HTTPS note
-
-This Docker setup runs HTTP locally for development.
-
-For deployment, put the containers behind a TLS-terminating reverse proxy or load balancer such as Nginx, Traefik, Caddy, AWS ALB, Azure Application Gateway, Cloudflare, etc.
-
-That way the browser-to-server password POST is protected by TLS.
+The individual frontend/backend replicas are internal Docker services.

@@ -31,5 +31,6 @@ openssl pkcs12 \
   -nodes \
   -out frontend/certs/keystore.key \
   -passin pass:"$PASSWORD"
+  
 
 echo "Generated local development certificates. Do not commit keystore.*, *.key, *.crt, *.p12."
