@@ -1,5 +1,6 @@
 package com.example.security.service;
 
+import com.example.security.crypto.FieldCryptoService;
 import com.example.security.dto.UserDto;
 import com.example.security.model.AppUser;
 import com.example.security.model.Role;
@@ -41,20 +42,31 @@ public class UserService {
     private final UserRepository userRepository;
     private final EmailService emailService;
     private final SecureRandom secureRandom = new SecureRandom();
+    private final FieldCryptoService crypto;
     private final String frontendBaseUrl;
     private final String backendBaseUrl;
 
     public UserService(UserRepository userRepository,
                        EmailService emailService,
+                       FieldCryptoService crypto,
                        @Value("${app.frontend-base-url}") String frontendBaseUrl,
                        @Value("${app.backend-base-url}") String backendBaseUrl) {
         this.userRepository = userRepository;
         this.emailService = emailService;
+        this.crypto = crypto;
         this.frontendBaseUrl = frontendBaseUrl;
         this.backendBaseUrl = backendBaseUrl;
     }
 
     public AppUser createUser(String username, String password, String proposedEmail, Set<Role> roles) {
+        return createUser(username, password, proposedEmail, roles, null);
+    }
+
+    public AppUser createUser(String username, String password, String proposedEmail, Set<Role> roles, String officeId) {
+        return createUser(username, password, proposedEmail, roles, officeId, null, null);
+    }
+
+    public AppUser createUser(String username, String password, String proposedEmail, Set<Role> roles, String officeId, String displayName, String telephone) {
         if (username == null || username.isBlank()) throw new IllegalArgumentException("Username is required");
         validatePassword(password);
         if (userRepository.findByUsername(username).isPresent()) throw new IllegalArgumentException("Username already exists");
@@ -65,6 +77,10 @@ public class UserService {
         user.setSalt(salt);
         user.setHash(hashPassword(salt, password));
         user.setRoles(normalizeRoles(roles));
+        user.setOfficeId(normalizeOfficeId(officeId));
+        user.setDisplayNameEncrypted(crypto.encryptBlankAsNull(displayName));
+        user.setDisplayNameLookupHash(crypto.lookupHashNullable(displayName));
+        user.setTelephoneEncrypted(crypto.encryptBlankAsNull(telephone));
 
         AppUser saved = userRepository.save(user);
         if (proposedEmail != null && !proposedEmail.isBlank()) {
@@ -204,8 +220,28 @@ public class UserService {
         userRepository.deleteByUsername(username);
     }
 
+    public UserDto updateOfficeId(String username, String officeId) {
+        AppUser user = userRepository.findByUsername(username).orElseThrow(() -> new IllegalArgumentException("User not found: " + username));
+        user.setOfficeId(normalizeOfficeId(officeId));
+        return toDto(userRepository.save(user));
+    }
+
     public UserDto toDto(AppUser user) {
-        return new UserDto(user.getId(), user.getUsername(), user.getEmail(), user.isEmailVerified(), user.getPendingEmail(), user.getRoles());
+        return new UserDto(
+                user.getId(),
+                user.getUsername(),
+                user.getEmail(),
+                user.isEmailVerified(),
+                user.getPendingEmail(),
+                user.getRoles(),
+                user.getOfficeId(),
+                crypto.decryptNullable(user.getDisplayNameEncrypted()),
+                crypto.decryptNullable(user.getTelephoneEncrypted())
+        );
+    }
+
+    private String normalizeOfficeId(String officeId) {
+        return officeId == null || officeId.isBlank() ? null : officeId.trim().toLowerCase();
     }
 
 

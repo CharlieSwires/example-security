@@ -20,6 +20,7 @@ spring:
   data:
     mongodb:
       uri: ${MONGODB_URI:mongodb://localhost:27017/example_security}
+      auto-index-creation: true
   session:
     store-type: mongodb
     timeout: ${SESSION_TIMEOUT:30m}
@@ -48,6 +49,11 @@ app:
   initial-super:
     username: ${INITIAL_SUPER_USERNAME:super}
     password: ${INITIAL_SUPER_PASSWORD:ChangeThisPassword123!}
+
+  crypto:
+    enabled: ${FIELD_CRYPTO_ENABLED:true}
+    passphrase: ${FIELD_CRYPTO_PASSPHRASE:dev-only-change-me-fourteen-random-words-before-real-use}
+    master-salt: ${FIELD_CRYPTO_MASTER_SALT_B64:ZXhhbXBsZS1zZWN1cml0eS1kZXYtc2FsdC0yMDI2}
   security:
     debug-request-logging: ${SECURITY_DEBUG_REQUEST_LOGGING:false}
     audit:

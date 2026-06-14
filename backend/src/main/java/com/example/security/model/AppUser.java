@@ -29,6 +29,16 @@ public class AppUser {
     private String hash;
     private Set<Role> roles = new HashSet<>();
 
+    /** Office/clinic boundary for PATIENT, OFFICE and OFFICE_ADMIN users. HQ/SUPER may be blank. */
+    private String officeId;
+
+    /** Encrypted-at-rest actual person details. */
+    private String displayNameEncrypted;
+    /** Deterministic HMAC lookup token; never stores the plaintext display name. */
+    @Indexed
+    private String displayNameLookupHash;
+    private String telephoneEncrypted;
+
     public String getId() { return id; }
     public String getUsername() { return username; }
     public String getEmail() { return email; }
@@ -41,6 +51,10 @@ public class AppUser {
     public byte[] getSalt() { return salt; }
     public String getHash() { return hash; }
     public Set<Role> getRoles() { return roles; }
+    public String getOfficeId() { return officeId; }
+    public String getDisplayNameEncrypted() { return displayNameEncrypted; }
+    public String getDisplayNameLookupHash() { return displayNameLookupHash; }
+    public String getTelephoneEncrypted() { return telephoneEncrypted; }
 
     public void setId(String id) { this.id = id; }
     public void setUsername(String username) { this.username = username; }
@@ -54,4 +68,8 @@ public class AppUser {
     public void setSalt(byte[] salt) { this.salt = salt; }
     public void setHash(String hash) { this.hash = hash; }
     public void setRoles(Set<Role> roles) { this.roles = roles == null ? new HashSet<>() : roles; }
+    public void setOfficeId(String officeId) { this.officeId = officeId == null || officeId.isBlank() ? null : officeId.trim().toLowerCase(); }
+    public void setDisplayNameEncrypted(String displayNameEncrypted) { this.displayNameEncrypted = displayNameEncrypted; }
+    public void setDisplayNameLookupHash(String displayNameLookupHash) { this.displayNameLookupHash = displayNameLookupHash; }
+    public void setTelephoneEncrypted(String telephoneEncrypted) { this.telephoneEncrypted = telephoneEncrypted; }
 }

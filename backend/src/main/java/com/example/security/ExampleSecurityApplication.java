@@ -24,7 +24,7 @@ public class ExampleSecurityApplication {
     ) {
         return args -> {
             if (userService.findByUsername(username).isEmpty()) {
-                userService.createUser(username, password, null, Set.of(Role.SUPER));
+                userService.createUser(username, password, null, Set.of(Role.SUPER), null);
                 System.out.println("Created initial SUPER user: " + username);
             }
         };

@@ -32,7 +32,7 @@ public class AdminUserController {
 
     @PostMapping
     public UserDto createUser(@RequestBody CreateUserRequest request, Authentication authentication, HttpServletRequest httpRequest) {
-        UserDto created = userService.toDto(userService.createUser(request.username(), request.password(), request.email(), request.roles()));
+        UserDto created = userService.toDto(userService.createUser(request.username(), request.password(), request.email(), request.roles(), request.officeId(), request.displayName(), request.telephone()));
         auditService.record("USER_CREATED", authentication.getName(), created.username(), true, "admin_created_user", httpRequest,
                 Map.of("roles", String.valueOf(created.roles())));
         return created;
