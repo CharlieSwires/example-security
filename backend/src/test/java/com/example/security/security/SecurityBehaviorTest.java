@@ -66,14 +66,14 @@ class SecurityBehaviorTest {
     }
 
     @Test
-    void userCannotAccessAdminUsers() throws Exception {
-        mockMvc.perform(get("/api/admin/users").with(user("bob").roles("USER")))
+    void patientCannotAccessAdminUsers() throws Exception {
+        mockMvc.perform(get("/api/admin/users").with(user("bob").roles("PATIENT")))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void developerCannotAccessAdminUsers() throws Exception {
-        mockMvc.perform(get("/api/admin/users").with(user("dev").roles("DEVELOPER")))
+    void officeAdminCannotAccessAdminUsers() throws Exception {
+        mockMvc.perform(get("/api/admin/users").with(user("dev").roles("OFFICE_ADMIN")))
                 .andExpect(status().isForbidden());
     }
 

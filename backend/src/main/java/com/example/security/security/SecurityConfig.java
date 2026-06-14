@@ -107,8 +107,13 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/me").authenticated()
                         .requestMatchers("/api/admin/**").hasRole("SUPER")
                         .requestMatchers("/api/password/change-link").authenticated()
-                        .requestMatchers("/developer").hasAnyRole("DEVELOPER", "SUPER")
-                        .requestMatchers("/user").hasAnyRole("USER", "SUPER")
+                        .requestMatchers("/patient").hasAnyRole("PATIENT", "OFFICE", "OFFICE_ADMIN", "HQ", "SUPER")
+                        .requestMatchers("/office").hasAnyRole("OFFICE", "OFFICE_ADMIN", "HQ", "SUPER")
+                        .requestMatchers("/office-admin").hasAnyRole("OFFICE_ADMIN", "HQ", "SUPER")
+                        .requestMatchers("/hq").hasAnyRole("HQ", "SUPER")
+                        .requestMatchers("/super").hasRole("SUPER")
+                        .requestMatchers("/developer").hasAnyRole("OFFICE_ADMIN", "HQ", "SUPER")
+                        .requestMatchers("/user").hasAnyRole("PATIENT", "OFFICE", "OFFICE_ADMIN", "HQ", "SUPER")
                         .anyRequest().authenticated()
                 );
 

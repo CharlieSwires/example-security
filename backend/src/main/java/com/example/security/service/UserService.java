@@ -64,7 +64,7 @@ public class UserService {
         user.setUsername(username.trim());
         user.setSalt(salt);
         user.setHash(hashPassword(salt, password));
-        user.setRoles(roles == null || roles.isEmpty() ? Set.of(Role.USER) : roles);
+        user.setRoles(normalizeRoles(roles));
 
         AppUser saved = userRepository.save(user);
         if (proposedEmail != null && !proposedEmail.isBlank()) {
@@ -84,13 +84,23 @@ public class UserService {
 
     public UserDto updateRoles(String username, Set<Role> roles) {
         AppUser user = userRepository.findByUsername(username).orElseThrow(() -> new IllegalArgumentException("User not found: " + username));
-        Set<Role> nextRoles = roles == null || roles.isEmpty() ? Set.of(Role.USER) : roles;
+        Set<Role> nextRoles = normalizeRoles(roles);
         if (user.getRoles().contains(Role.SUPER) && !nextRoles.contains(Role.SUPER)
                 && userRepository.countByRolesContaining(Role.SUPER) <= 1) {
             throw new IllegalArgumentException("Cannot remove SUPER from the last SUPER user");
         }
         user.setRoles(nextRoles);
         return toDto(userRepository.save(user));
+    }
+
+
+    private Set<Role> normalizeRoles(Set<Role> roles) {
+        if (roles == null || roles.isEmpty()) {
+            return Set.of(Role.PATIENT);
+        }
+        return roles.stream()
+                .map(Role::normalized)
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 
     public UserDto updatePassword(String username, String newPassword) {
