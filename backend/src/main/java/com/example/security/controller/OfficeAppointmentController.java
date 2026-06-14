@@ -3,6 +3,7 @@ package com.example.security.controller;
 import com.example.security.crypto.FieldCryptoService;
 import com.example.security.dto.CreateAppointmentRequest;
 import com.example.security.dto.PatientAppointmentDocumentDto;
+import com.example.security.dto.PageResponse;
 import com.example.security.dto.PatientLookupDto;
 import com.example.security.dto.UpdateClinicalDocumentRequest;
 import com.example.security.dto.UpdateAppointmentAdminRequest;
@@ -14,6 +15,7 @@ import com.example.security.repository.PatientAppointmentDocumentRepository;
 import com.example.security.repository.UserRepository;
 import com.example.security.repository.OfficeAccountRepository;
 import com.example.security.service.PatientAppointmentMapper;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -26,6 +28,7 @@ import java.util.Set;
 @RestController
 public class OfficeAppointmentController {
     private static final String DEFAULT_OFFICE_ID = "goole";
+    private static final int PAGE_SIZE = 50;
 
     private final PatientAppointmentDocumentRepository appointmentRepository;
     private final UserRepository userRepository;
@@ -48,30 +51,26 @@ public class OfficeAppointmentController {
     }
 
     @GetMapping({"/api/office/appointments", "/api/office-admin/appointments"})
-    public List<PatientAppointmentDocumentDto> officeAppointments(
+    public PageResponse<PatientAppointmentDocumentDto> officeAppointments(
             @RequestParam(required = false) String officeId,
+            @RequestParam(defaultValue = "0") int page,
             Authentication authentication
     ) {
         AppUser current = currentUser(authentication);
+        PageRequest pageRequest = PageRequest.of(Math.max(page, 0), PAGE_SIZE);
         if (isHqOrSuper(current)) {
             String requestedOfficeId = normalizeOfficeId(officeId);
             if (requestedOfficeId != null) {
-                return appointmentRepository.findByOfficeIdOrderByAppointmentDateDescAppointmentTimeAsc(requestedOfficeId)
-                        .stream()
-                        .map(mapper::toDto)
-                        .toList();
+                return PageResponse.from(appointmentRepository.findByOfficeIdOrderByAppointmentDateDescAppointmentTimeAsc(requestedOfficeId, pageRequest)
+                        .map(mapper::toDto));
             }
-            return appointmentRepository.findAllByOrderByAppointmentDateDescAppointmentTimeAsc()
-                    .stream()
-                    .map(mapper::toDto)
-                    .toList();
+            return PageResponse.from(appointmentRepository.findAllByOrderByAppointmentDateDescAppointmentTimeAsc(pageRequest)
+                    .map(mapper::toDto));
         }
 
         officeId = requiredOfficeId(current);
-        return appointmentRepository.findByOfficeIdOrderByAppointmentDateDescAppointmentTimeAsc(officeId)
-                .stream()
-                .map(mapper::toDto)
-                .toList();
+        return PageResponse.from(appointmentRepository.findByOfficeIdOrderByAppointmentDateDescAppointmentTimeAsc(officeId, pageRequest)
+                .map(mapper::toDto));
     }
 
 

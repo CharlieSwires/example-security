@@ -12,6 +12,8 @@ import com.example.security.model.PatientAppointmentDocument;
 import com.example.security.repository.OfficeAccountRepository;
 import com.example.security.repository.UserRepository;
 import com.example.security.repository.PatientAppointmentDocumentRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
@@ -40,6 +42,10 @@ public class OfficeService {
 
     public List<OfficeDto> findAll() {
         return officeRepository.findAllByOrderByOfficeIdAsc().stream().map(this::toDto).toList();
+    }
+
+    public Page<OfficeDto> findAll(Pageable pageable) {
+        return officeRepository.findAllByOrderByOfficeIdAsc(pageable).map(this::toDto);
     }
 
     public OfficeDto create(CreateOfficeRequest request) {

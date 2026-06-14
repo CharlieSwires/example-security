@@ -85,6 +85,59 @@ async function apiFetch(path, options = {}) {
 }
 
 
+
+const PAGE_SIZE = 50;
+
+function pagePath(path, page) {
+  const separator = path.includes('?') ? '&' : '?';
+  return `${path}${separator}page=${encodeURIComponent(Math.max(page, 0))}`;
+}
+
+function readPagedPayload(payload) {
+  if (Array.isArray(payload)) {
+    return {
+      content: payload,
+      page: 0,
+      size: payload.length,
+      totalElements: payload.length,
+      totalPages: payload.length > 0 ? 1 : 0,
+      first: true,
+      last: true
+    };
+  }
+  return {
+    content: payload?.content ?? [],
+    page: payload?.page ?? 0,
+    size: payload?.size ?? PAGE_SIZE,
+    totalElements: payload?.totalElements ?? 0,
+    totalPages: payload?.totalPages ?? 0,
+    first: payload?.first ?? true,
+    last: payload?.last ?? true
+  };
+}
+
+function PaginationControls({ pageInfo, onPageChange }) {
+  const page = pageInfo?.page ?? 0;
+  const totalPages = pageInfo?.totalPages ?? 0;
+  const totalElements = pageInfo?.totalElements ?? 0;
+  const first = pageInfo?.first ?? true;
+  const last = pageInfo?.last ?? true;
+
+  return (
+    <div className="pagination-strip d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+      <div className="small text-secondary">
+        Showing up to {PAGE_SIZE} per page. Page {totalPages === 0 ? 0 : page + 1} of {totalPages}. Total: {totalElements}.
+      </div>
+      <div className="btn-group btn-group-sm">
+        <button className="btn btn-outline-secondary" disabled={first || page <= 0} onClick={() => onPageChange(0)}>First</button>
+        <button className="btn btn-outline-secondary" disabled={first || page <= 0} onClick={() => onPageChange(page - 1)}>Previous</button>
+        <button className="btn btn-outline-secondary" disabled={last || totalPages === 0} onClick={() => onPageChange(page + 1)}>Next</button>
+        <button className="btn btn-outline-secondary" disabled={last || totalPages === 0} onClick={() => onPageChange(Math.max(totalPages - 1, 0))}>Last</button>
+      </div>
+    </div>
+  );
+}
+
 function withOfficeQuery(path, officeId) {
   if (!officeId) return path;
   const separator = path.includes('?') ? '&' : '?';
@@ -300,10 +353,11 @@ function Dashboard({ session, onLogout }) {
   async function loadOfficesForContext() {
     if (!canHq) return;
     try {
-      const data = await apiFetch('/api/hq/offices', { method: 'GET' });
-      setOffices(data);
-      if (!selectedOfficeId && data.length > 0) {
-        setSelectedOfficeId(data[0].officeId);
+      const data = await apiFetch(pagePath('/api/hq/offices', 0), { method: 'GET' });
+      const pagePayload = readPagedPayload(data);
+      setOffices(pagePayload.content);
+      if (!selectedOfficeId && pagePayload.content.length > 0) {
+        setSelectedOfficeId(pagePayload.content[0].officeId);
       }
     } catch (err) {
       // Keep the dashboard usable if no offices have been created yet.
@@ -433,6 +487,8 @@ function AccessPanel({ title }) {
 
 function PatientPortalScreen() {
   const [appointments, setAppointments] = useState([]);
+  const [page, setPage] = useState(0);
+  const [pageInfo, setPageInfo] = useState(readPagedPayload([]));
   const [selectedId, setSelectedId] = useState(null);
   const [expandedNotes, setExpandedNotes] = useState({});
   const [error, setError] = useState('');
@@ -446,10 +502,12 @@ function PatientPortalScreen() {
       setError('');
 
       try {
-        const data = await apiFetch('/api/patient/appointments', { method: 'GET' });
+        const data = await apiFetch(pagePath('/api/patient/appointments', page), { method: 'GET' });
         if (cancelled) return;
-        setAppointments(data);
-        setSelectedId(data[0]?.id ?? null);
+        const pagePayload = readPagedPayload(data);
+        setAppointments(pagePayload.content);
+        setPageInfo(pagePayload);
+        setSelectedId(pagePayload.content[0]?.id ?? null);
       } catch (err) {
         if (!cancelled) setError('Could not load the patient appointment documents.');
       } finally {
@@ -459,7 +517,7 @@ function PatientPortalScreen() {
 
     loadAppointments();
     return () => { cancelled = true; };
-  }, []);
+  }, [page]);
 
   const selectedAppointment = appointments.find(item => item.id === selectedId) ?? appointments[0] ?? null;
 
@@ -491,7 +549,7 @@ function PatientPortalScreen() {
             {error && <div className="alert alert-danger">{error}</div>}
             {!busy && !error && appointments.length === 0 && <div className="alert alert-info">No appointment documents are available for this patient account.</div>}
 
-            <div className="list-group appointment-list">
+            <div className="list-group appointment-list scrollable-list-50">
               {appointments.map(appointment => (
                 <button
                   type="button"
@@ -511,6 +569,7 @@ function PatientPortalScreen() {
                 </button>
               ))}
             </div>
+            <PaginationControls pageInfo={pageInfo} onPageChange={nextPage => { setExpandedNotes({}); setPage(nextPage); }} />
           </div>
         </div>
       </div>
@@ -594,6 +653,8 @@ function PatientPortalScreen() {
 
 function OfficeClinicianScreen({ selectedOfficeId = '' }) {
   const [appointments, setAppointments] = useState([]);
+  const [page, setPage] = useState(0);
+  const [pageInfo, setPageInfo] = useState(readPagedPayload([]));
   const [selectedId, setSelectedId] = useState(null);
   const [prescription, setPrescription] = useState('');
   const [noteSubject, setNoteSubject] = useState('');
@@ -607,9 +668,11 @@ function OfficeClinicianScreen({ selectedOfficeId = '' }) {
     setBusy(true);
     setError('');
     try {
-      const data = await apiFetch(withOfficeQuery('/api/office/appointments', selectedOfficeId), { method: 'GET' });
-      setAppointments(data);
-      const nextSelected = data.find(item => item.id === selectedId) ?? data[0] ?? null;
+      const data = await apiFetch(pagePath(withOfficeQuery('/api/office/appointments', selectedOfficeId), page), { method: 'GET' });
+      const pagePayload = readPagedPayload(data);
+      setAppointments(pagePayload.content);
+      setPageInfo(pagePayload);
+      const nextSelected = pagePayload.content.find(item => item.id === selectedId) ?? pagePayload.content[0] ?? null;
       setSelectedId(nextSelected?.id ?? null);
       setPrescription(nextSelected?.prescription ?? '');
     } catch (err) {
@@ -621,7 +684,7 @@ function OfficeClinicianScreen({ selectedOfficeId = '' }) {
 
   useEffect(() => {
     loadAppointments();
-  }, [selectedOfficeId]);
+  }, [selectedOfficeId, page]);
 
   const selectedAppointment = appointments.find(item => item.id === selectedId) ?? null;
 
@@ -682,7 +745,7 @@ function OfficeClinicianScreen({ selectedOfficeId = '' }) {
             {error && <div className="alert alert-danger">{error}</div>}
             {!busy && appointments.length === 0 && <div className="alert alert-info">No appointments are available for this office.</div>}
 
-            <div className="list-group appointment-list">
+            <div className="list-group appointment-list scrollable-list-50">
               {appointments.map(appointment => (
                 <button
                   type="button"
@@ -700,6 +763,7 @@ function OfficeClinicianScreen({ selectedOfficeId = '' }) {
                 </button>
               ))}
             </div>
+            <PaginationControls pageInfo={pageInfo} onPageChange={setPage} />
           </div>
         </div>
       </div>
@@ -778,6 +842,8 @@ function OfficeAdminScreen({ selectedOfficeId = '' }) {
   };
 
   const [appointments, setAppointments] = useState([]);
+  const [page, setPage] = useState(0);
+  const [pageInfo, setPageInfo] = useState(readPagedPayload([]));
   const [form, setForm] = useState(blankForm);
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({ appointmentDate: today, appointmentTime: '09:00', appointmentType: '', clinician: '' });
@@ -793,8 +859,10 @@ function OfficeAdminScreen({ selectedOfficeId = '' }) {
     setBusy(true);
     setError('');
     try {
-      const data = await apiFetch(withOfficeQuery('/api/office-admin/appointments', selectedOfficeId), { method: 'GET' });
-      setAppointments(data);
+      const data = await apiFetch(pagePath(withOfficeQuery('/api/office-admin/appointments', selectedOfficeId), page), { method: 'GET' });
+      const pagePayload = readPagedPayload(data);
+      setAppointments(pagePayload.content);
+      setPageInfo(pagePayload);
     } catch (err) {
       setError('Could not load office appointments.');
     } finally {
@@ -805,7 +873,7 @@ function OfficeAdminScreen({ selectedOfficeId = '' }) {
   useEffect(() => {
     if (selectedOfficeId) setForm(current => ({ ...current, officeId: selectedOfficeId }));
     loadAppointments();
-  }, [selectedOfficeId]);
+  }, [selectedOfficeId, page]);
 
   function formatDate(value) {
     if (!value) return '';
@@ -994,7 +1062,7 @@ function OfficeAdminScreen({ selectedOfficeId = '' }) {
           <div className="card-header bg-white py-3"><h2 className="h5 fw-bold mb-0">Office appointment list</h2></div>
           <div className="card-body">
             {busy && <div className="alert alert-secondary">Loading appointments...</div>}
-            <div className="table-responsive">
+            <div className="table-responsive scrollable-list-50">
               <table className="table align-middle">
                 <thead><tr><th>Date</th><th>Patient</th><th>Telephone</th><th>Office</th><th>Clinician</th><th>Status</th><th className="text-end">Actions</th></tr></thead>
                 <tbody>
@@ -1025,6 +1093,7 @@ function OfficeAdminScreen({ selectedOfficeId = '' }) {
                 </tbody>
               </table>
             </div>
+            <PaginationControls pageInfo={pageInfo} onPageChange={setPage} />
           </div>
         </div>
       </div>
@@ -1035,6 +1104,8 @@ function OfficeAdminScreen({ selectedOfficeId = '' }) {
 function HqScreen({ onOfficesChanged = () => {} }) {
   const blankOffice = { officeId: '', username: '', password: '', displayName: '', address: '', telephone: '', email: '' };
   const [offices, setOffices] = useState([]);
+  const [page, setPage] = useState(0);
+  const [pageInfo, setPageInfo] = useState(readPagedPayload([]));
   const [form, setForm] = useState(blankOffice);
   const [movePractice, setMovePractice] = useState({ fromOfficeId: '', toOfficeId: '' });
   const [message, setMessage] = useState('');
@@ -1045,8 +1116,10 @@ function HqScreen({ onOfficesChanged = () => {} }) {
     setBusy(true);
     setError('');
     try {
-      const data = await apiFetch('/api/hq/offices', { method: 'GET' });
-      setOffices(data);
+      const data = await apiFetch(pagePath('/api/hq/offices', page), { method: 'GET' });
+      const pagePayload = readPagedPayload(data);
+      setOffices(pagePayload.content);
+      setPageInfo(pagePayload);
     } catch (err) {
       setError('Could not load offices.');
     } finally {
@@ -1054,7 +1127,7 @@ function HqScreen({ onOfficesChanged = () => {} }) {
     }
   }
 
-  useEffect(() => { loadOffices(); }, []);
+  useEffect(() => { loadOffices(); }, [page]);
 
   async function createOffice(event) {
     event.preventDefault();
@@ -1152,13 +1225,14 @@ function HqScreen({ onOfficesChanged = () => {} }) {
           <div className="card-header bg-white py-3"><h2 className="h5 fw-bold mb-0">Office list</h2></div>
           <div className="card-body">
             {busy && <div className="alert alert-secondary">Loading offices...</div>}
-            <div className="table-responsive">
+            <div className="table-responsive scrollable-list-50">
               <table className="table align-middle">
                 <thead><tr><th>Office</th><th>Login username</th><th>Address</th><th>Telephone</th><th>Email</th><th className="text-end">Actions</th></tr></thead>
                 <tbody>{offices.map(office => (<tr key={office.officeId}><td><div className="fw-semibold">{office.displayName || office.officeId}</div><div className="small text-secondary">{office.officeId}</div></td><td>{office.username}</td><td>{office.address || <span className="text-secondary">Not held</span>}</td><td>{office.telephone || <span className="text-secondary">Not held</span>}</td><td>{office.email || <span className="text-secondary">Not held</span>}</td><td className="text-end"><button className="btn btn-outline-danger btn-sm" onClick={() => deleteOffice(office.officeId)}>Delete</button></td></tr>))}</tbody>
               </table>
             </div>
-            <div className="alert alert-secondary mb-0">For practice closure, use “Move practice patients and clinicians” first so patient accounts, clinician/staff users and appointment documents transfer to the new office. Then delete the old office manually.</div>
+            <PaginationControls pageInfo={pageInfo} onPageChange={setPage} />
+            <div className="alert alert-secondary mb-0 mt-3">For practice closure, use “Move practice patients and clinicians” first so patient accounts, clinician/staff users and appointment documents transfer to the new office. Then delete the old office manually.</div>
           </div>
         </div>
       </div>
@@ -1257,6 +1331,8 @@ function Metric({ title, value }) {
 function AdminPanel({ session }) {
   const blankForm = useMemo(() => ({ username: '', password: '', email: '', officeId: 'goole', displayName: '', telephone: '', roles: ['PATIENT'] }), []);
   const [users, setUsers] = useState([]);
+  const [page, setPage] = useState(0);
+  const [pageInfo, setPageInfo] = useState(readPagedPayload([]));
   const [form, setForm] = useState(blankForm);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -1264,8 +1340,10 @@ function AdminPanel({ session }) {
   async function loadUsers() {
     setError('');
     try {
-      const data = await apiFetch('/api/admin/users', { method: 'GET' });
-      setUsers(data);
+      const data = await apiFetch(pagePath('/api/admin/users', page), { method: 'GET' });
+      const pagePayload = readPagedPayload(data);
+      setUsers(pagePayload.content);
+      setPageInfo(pagePayload);
     } catch (err) {
       setError('Could not load users.');
     }
@@ -1273,7 +1351,7 @@ function AdminPanel({ session }) {
 
   useEffect(() => {
     loadUsers();
-  }, []);
+  }, [page]);
 
   function toggleRole(role) {
     const currentRoles = normaliseRoles(form.roles);
@@ -1423,7 +1501,7 @@ function AdminPanel({ session }) {
             <div className="col-md-2"><button className="btn btn-success w-100">Add user</button></div>
           </form>
 
-          <div className="table-responsive">
+          <div className="table-responsive scrollable-list-50">
             <table className="table align-middle">
               <thead><tr><th>Username</th><th>Actual name / telephone</th><th>Email</th><th>Office</th><th>Patient/office roles</th><th>New password</th><th className="text-end">Actions</th></tr></thead>
               <tbody>
@@ -1433,6 +1511,7 @@ function AdminPanel({ session }) {
               </tbody>
             </table>
           </div>
+          <PaginationControls pageInfo={pageInfo} onPageChange={setPage} />
         </div>
       </div>
     </section>

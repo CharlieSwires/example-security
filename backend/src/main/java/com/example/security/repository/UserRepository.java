@@ -1,6 +1,8 @@
 package com.example.security.repository;
 
 import com.example.security.model.AppUser;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.MongoRepository;
 
 import java.util.List;
@@ -13,6 +15,7 @@ public interface UserRepository extends MongoRepository<AppUser, String> {
     Optional<AppUser> findByPasswordResetTokenHash(String passwordResetTokenHash);
     Optional<AppUser> deleteByUsername(String username);
     long countByRolesContaining(com.example.security.model.Role role);
+    Page<AppUser> findAllByOrderByUsernameAsc(Pageable pageable);
     List<AppUser> findByOfficeId(String officeId);
     List<AppUser> findByOfficeIdAndRolesContaining(String officeId, com.example.security.model.Role role);
 }

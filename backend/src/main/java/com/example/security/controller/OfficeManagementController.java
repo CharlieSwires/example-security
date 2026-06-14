@@ -2,9 +2,11 @@ package com.example.security.controller;
 
 import com.example.security.dto.CreateOfficeRequest;
 import com.example.security.dto.OfficeDto;
+import com.example.security.dto.PageResponse;
 import com.example.security.dto.MovePracticePatientsRequest;
 import com.example.security.dto.MovePracticePatientsResponse;
 import com.example.security.service.OfficeService;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,9 +21,11 @@ public class OfficeManagementController {
         this.officeService = officeService;
     }
 
+    private static final int PAGE_SIZE = 50;
+
     @GetMapping
-    public List<OfficeDto> offices() {
-        return officeService.findAll();
+    public PageResponse<OfficeDto> offices(@RequestParam(defaultValue = "0") int page) {
+        return PageResponse.from(officeService.findAll(PageRequest.of(Math.max(page, 0), PAGE_SIZE)));
     }
 
     @PostMapping

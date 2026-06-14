@@ -5,9 +5,11 @@ import com.example.security.dto.UpdateEmailRequest;
 import com.example.security.dto.UpdatePasswordRequest;
 import com.example.security.dto.UpdateRolesRequest;
 import com.example.security.dto.UserDto;
+import com.example.security.dto.PageResponse;
 import com.example.security.security.SecurityAuditService;
 import com.example.security.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -25,9 +27,11 @@ public class AdminUserController {
         this.auditService = auditService;
     }
 
+    private static final int PAGE_SIZE = 50;
+
     @GetMapping
-    public List<UserDto> allUsers() {
-        return userService.findAllUsers();
+    public PageResponse<UserDto> allUsers(@RequestParam(defaultValue = "0") int page) {
+        return PageResponse.from(userService.findAllUsers(PageRequest.of(Math.max(page, 0), PAGE_SIZE)));
     }
 
     @PostMapping

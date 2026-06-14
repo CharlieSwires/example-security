@@ -7,6 +7,8 @@ import com.example.security.model.Role;
 import com.example.security.repository.UserRepository;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -96,6 +98,10 @@ public class UserService {
 
     public List<UserDto> findAllUsers() {
         return userRepository.findAll().stream().map(this::toDto).toList();
+    }
+
+    public Page<UserDto> findAllUsers(Pageable pageable) {
+        return userRepository.findAllByOrderByUsernameAsc(pageable).map(this::toDto);
     }
 
     public UserDto updateRoles(String username, Set<Role> roles) {
