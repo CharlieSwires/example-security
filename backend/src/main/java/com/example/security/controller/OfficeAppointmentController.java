@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
@@ -270,11 +271,20 @@ public class OfficeAppointmentController {
             document.setPrescription(null);
         }
 
-        if (blankToNull(request.noteText()) != null || blankToNull(request.noteSubject()) != null) {
+        if (blankToNull(request.noteText()) != null || blankToNull(request.noteSubject()) != null || blankToNull(request.notePrescription()) != null) {
             PatientAppointmentDocument.PatientClinicalNote note = new PatientAppointmentDocument.PatientClinicalNote();
-            note.setCreatedDate(request.noteDate() == null ? LocalDate.now() : request.noteDate());
+            LocalDateTime noteDateTime = request.noteDateTime();
+            if (noteDateTime == null) {
+                noteDateTime = request.noteDate() == null ? LocalDateTime.now() : request.noteDate().atStartOfDay();
+            }
+            note.setNoteDateTime(noteDateTime);
+            note.setCreatedDate(noteDateTime.toLocalDate());
             note.setSubjectEncrypted(crypto.encryptBlankAsNull(blankToNull(request.noteSubject()) == null ? "Clinical note" : request.noteSubject().trim()));
             note.setNoteTextEncrypted(crypto.encryptBlankAsNull(blankToNull(request.noteText()) == null ? "" : request.noteText().trim()));
+            note.setPrescriptionEncrypted(crypto.encryptBlankAsNull(blankToNull(request.notePrescription()) == null ? "" : request.notePrescription().trim()));
+            note.setSubject(null);
+            note.setNoteText(null);
+            note.setPrescription(null);
             document.getNotes().add(note);
         }
 

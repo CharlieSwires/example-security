@@ -34,17 +34,17 @@ openssl pkcs12 -export \
 chmod 600 "$BACKEND_CERT_DIR/keystore.p12"
 
 openssl pkcs12 \
-  -in backend/src/main/resources/keystore.p12 \
+  -in "$BACKEND_CERT_DIR/keystore.p12" \
   -clcerts \
   -nokeys \
-  -out $CERT_DIR/keystore.crt \
+  -out "$CERT_DIR/keystore.crt" \
   -passin pass:"$KEYSTORE_PASSWORD"
 
 openssl pkcs12 \
-  -in backend/src/main/resources/keystore.p12 \
+  -in "$BACKEND_CERT_DIR/keystore.p12" \
   -nocerts \
   -nodes \
-  -out $CERT_DIR/keystore.key \
+  -out "$CERT_DIR/keystore.key" \
   -passin pass:"$KEYSTORE_PASSWORD"
  
 echo "Installed IONOS certificate files:"

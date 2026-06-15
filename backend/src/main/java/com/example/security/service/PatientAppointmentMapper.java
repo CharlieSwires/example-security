@@ -6,6 +6,8 @@ import com.example.security.dto.PatientNoteDto;
 import com.example.security.model.PatientAppointmentDocument;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 
@@ -20,11 +22,13 @@ public class PatientAppointmentMapper {
     public PatientAppointmentDocumentDto toDto(PatientAppointmentDocument document) {
         List<PatientNoteDto> notes = document.getNotes()
                 .stream()
-                .sorted(Comparator.comparing(PatientAppointmentDocument.PatientClinicalNote::getCreatedDate, Comparator.nullsLast(Comparator.naturalOrder())).reversed())
+                .sorted(Comparator.comparing(this::noteSortDateTime, Comparator.nullsLast(Comparator.naturalOrder())).reversed())
                 .map(note -> new PatientNoteDto(
                         note.getCreatedDate(),
+                        note.getNoteDateTime(),
                         decryptOrLegacy(note.getSubjectEncrypted(), note.getSubject()),
-                        decryptOrLegacy(note.getNoteTextEncrypted(), note.getNoteText())
+                        decryptOrLegacy(note.getNoteTextEncrypted(), note.getNoteText()),
+                        decryptOrLegacy(note.getPrescriptionEncrypted(), note.getPrescription())
                 ))
                 .toList();
 
@@ -42,6 +46,14 @@ public class PatientAppointmentMapper {
                 decryptOrLegacy(document.getPrescriptionEncrypted(), document.getPrescription()),
                 notes
         );
+    }
+
+    private LocalDateTime noteSortDateTime(PatientAppointmentDocument.PatientClinicalNote note) {
+        if (note.getNoteDateTime() != null) {
+            return note.getNoteDateTime();
+        }
+        LocalDate createdDate = note.getCreatedDate();
+        return createdDate == null ? null : createdDate.atStartOfDay();
     }
 
     private String decryptOrLegacy(String encryptedValue, String legacyPlaintext) {

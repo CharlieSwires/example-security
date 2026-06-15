@@ -200,7 +200,7 @@ function LoginScreen({ onLogin, onForgotPassword }) {
     <main className="login-page">
       <div className="card shadow-lg border-0 login-card">
         <div className="card-body p-4 p-md-5">
-          <h1 className="h3 mb-2 fw-bold">ExampleSecurity</h1>
+          <h1 className="h3 mb-2 fw-bold">Optician Hub</h1>
           <p className="text-secondary mb-4">Login to test Spring Security roles.</p>
 
           {error && <div className="alert alert-danger">{error}</div>}
@@ -417,7 +417,7 @@ function Dashboard({ session, onLogout }) {
     <main>
       <nav className="navbar navbar-expand-lg bg-dark navbar-dark">
         <div className="container-fluid px-4">
-          <span className="navbar-brand fw-bold">ExampleSecurity Ophthalmic Clinics</span>
+          <span className="navbar-brand fw-bold">Ophthalmic Clinics</span>
           <div className="d-flex align-items-center gap-3">
             <span className="text-white-50">{session.username}</span>
             <button className="btn btn-outline-light btn-sm" onClick={logout}>Logout</button>
@@ -526,6 +526,13 @@ function PatientPortalScreen() {
     return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(`${value}T00:00:00`));
   }
 
+  function formatDateTime(value, fallbackDate) {
+    if (value) {
+      return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+    }
+    return formatDate(fallbackDate);
+  }
+
   function toggleNote(index) {
     setExpandedNotes({
       ...expandedNotes,
@@ -596,7 +603,7 @@ function PatientPortalScreen() {
                   </div>
                   <div className="col-md-4">
                     <div className="document-field">
-                      <div className="small text-secondary">Prescription</div>
+                      <div className="small text-secondary">Current prescription</div>
                       <div>{selectedAppointment.prescription}</div>
                     </div>
                   </div>
@@ -613,8 +620,9 @@ function PatientPortalScreen() {
                   <table className="table align-middle patient-notes-table">
                     <thead>
                     <tr>
-                      <th>Date created</th>
+                      <th>Date/time</th>
                       <th>Subject</th>
+                      <th>Prescription from visit</th>
                       <th>Note</th>
                     </tr>
                     </thead>
@@ -623,16 +631,31 @@ function PatientPortalScreen() {
                       const key = `${selectedAppointment.id}-${index}`;
                       const expanded = !!expandedNotes[key];
                       return (
-                        <tr key={key}>
-                          <td className="text-nowrap">{formatDate(note.createdDate)}</td>
-                          <td className="fw-semibold">{note.subject}</td>
-                          <td>
-                            {expanded && <p className="mb-2">{note.noteText}</p>}
-                            <button className="btn btn-outline-primary btn-sm" onClick={() => toggleNote(index)}>
-                              {expanded ? 'Less...' : 'More...'}
-                            </button>
-                          </td>
-                        </tr>
+                        <React.Fragment key={key}>
+                          <tr>
+                            <td className="text-nowrap">{formatDateTime(note.noteDateTime, note.createdDate)}</td>
+                            <td className="fw-semibold">{note.subject}</td>
+                            <td>{note.prescription || <span className="text-secondary">Not recorded</span>}</td>
+                            <td>
+                              <button type="button" className="btn btn-outline-primary btn-sm" onClick={() => toggleNote(index)}>
+                                {expanded ? 'Less...' : 'More...'}
+                              </button>
+                            </td>
+                          </tr>
+                          {expanded && (
+                            <tr className="note-detail-row">
+                              <td colSpan="4" className="pt-0 border-0">
+                                <textarea
+                                  className="form-control"
+                                  rows="4"
+                                  readOnly
+                                  value={note.noteText || ''}
+                                  aria-label={`Clinical note for ${note.subject || 'entry'}`}
+                                />
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       );
                     })}
                     </tbody>
@@ -658,7 +681,8 @@ function OfficeClinicianScreen({ selectedOfficeId = '' }) {
   const [selectedId, setSelectedId] = useState(null);
   const [prescription, setPrescription] = useState('');
   const [noteSubject, setNoteSubject] = useState('');
-  const [noteDate, setNoteDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [noteDateTime, setNoteDateTime] = useState(() => new Date().toISOString().slice(0, 16));
+  const [notePrescription, setNotePrescription] = useState('');
   const [noteText, setNoteText] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -693,10 +717,18 @@ function OfficeClinicianScreen({ selectedOfficeId = '' }) {
     return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(`${value}T00:00:00`));
   }
 
+  function formatDateTime(value, fallbackDate) {
+    if (value) {
+      return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+    }
+    return formatDate(fallbackDate);
+  }
+
   function selectAppointment(appointment) {
     setSelectedId(appointment.id);
     setPrescription(appointment.prescription ?? '');
     setNoteSubject('');
+    setNotePrescription('');
     setNoteText('');
     setMessage('');
     setError('');
@@ -714,9 +746,10 @@ function OfficeClinicianScreen({ selectedOfficeId = '' }) {
         method: 'PUT',
         body: JSON.stringify({
           prescription,
-          noteDate,
+          noteDateTime,
           noteSubject,
-          noteText
+          noteText,
+          notePrescription
         })
       });
 
@@ -724,8 +757,9 @@ function OfficeClinicianScreen({ selectedOfficeId = '' }) {
       setSelectedId(updated.id);
       setPrescription(updated.prescription ?? '');
       setNoteSubject('');
+      setNotePrescription('');
       setNoteText('');
-      setMessage('Prescription and clinical note saved for this office appointment.');
+      setMessage('Current prescription and clinical note saved for this office appointment.');
     } catch (err) {
       setError('Could not save the clinical document. Check that this patient belongs to your office.');
     }
@@ -771,7 +805,7 @@ function OfficeClinicianScreen({ selectedOfficeId = '' }) {
       <div className="col-xl-7">
         <div className="card border-0 shadow-sm h-100">
           <div className="card-header bg-white py-3">
-            <h2 className="h5 fw-bold mb-0">Prescription and clinical notes</h2>
+            <h2 className="h5 fw-bold mb-0">Current prescription and clinical notes</h2>
           </div>
           <div className="card-body">
             {!selectedAppointment && <div className="alert alert-info">Select an appointment to enter prescription and notes.</div>}
@@ -797,13 +831,13 @@ function OfficeClinicianScreen({ selectedOfficeId = '' }) {
                   </div>
                 </div>
 
-                <label className="form-label">Prescription</label>
+                <label className="form-label">Current prescription</label>
                 <textarea className="form-control mb-3" rows="3" value={prescription} onChange={event => setPrescription(event.target.value)} placeholder="Enter spectacle/contact lens prescription or no-change note" />
 
                 <div className="row g-3">
                   <div className="col-md-4">
-                    <label className="form-label">Note date</label>
-                    <input className="form-control" type="date" value={noteDate} onChange={event => setNoteDate(event.target.value)} />
+                    <label className="form-label">Note date/time</label>
+                    <input className="form-control" type="datetime-local" value={noteDateTime} onChange={event => setNoteDateTime(event.target.value)} />
                   </div>
                   <div className="col-md-8">
                     <label className="form-label">Subject heading</label>
@@ -811,11 +845,48 @@ function OfficeClinicianScreen({ selectedOfficeId = '' }) {
                   </div>
                 </div>
 
+                <label className="form-label mt-3">Prescription resulting from this visit</label>
+                <textarea className="form-control" rows="3" value={notePrescription} onChange={event => setNotePrescription(event.target.value)} placeholder="Enter the prescription resulting from this appointment; encrypted at rest" />
+
                 <label className="form-label mt-3">Clinical note</label>
                 <textarea className="form-control" rows="5" value={noteText} onChange={event => setNoteText(event.target.value)} placeholder="Enter the clinical note for this appointment" />
 
+                {selectedAppointment.notes?.length > 0 && (
+                  <div className="mt-4">
+                    <h3 className="h6 fw-bold">Existing appointment notes</h3>
+                    <div className="table-responsive small">
+                      <table className="table table-sm align-middle">
+                        <thead><tr><th>Date/time</th><th>Subject</th><th>Prescription from visit</th><th>Note</th></tr></thead>
+                        <tbody>
+                        {selectedAppointment.notes.map((note, index) => (
+                          <React.Fragment key={`${selectedAppointment.id}-office-note-${index}`}>
+                            <tr>
+                              <td className="text-nowrap">{formatDateTime(note.noteDateTime, note.createdDate)}</td>
+                              <td className="fw-semibold">{note.subject}</td>
+                              <td>{note.prescription || <span className="text-secondary">Not recorded</span>}</td>
+                              <td className="text-secondary">Shown below</td>
+                            </tr>
+                            <tr className="note-detail-row">
+                              <td colSpan="4" className="pt-0 border-0">
+                                <textarea
+                                  className="form-control form-control-sm"
+                                  rows="4"
+                                  readOnly
+                                  value={note.noteText || ''}
+                                  aria-label={`Clinical note for ${note.subject || 'entry'}`}
+                                />
+                              </td>
+                            </tr>
+                          </React.Fragment>
+                        ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
                 <div className="d-flex gap-2 mt-3">
-                  <button className="btn btn-success">Save prescription / add note</button>
+                  <button className="btn btn-success">Save current prescription / add note</button>
                   <button type="button" className="btn btn-outline-secondary" onClick={loadAppointments}>Reload</button>
                 </div>
               </form>
@@ -1064,7 +1135,7 @@ function OfficeAdminScreen({ selectedOfficeId = '' }) {
             {busy && <div className="alert alert-secondary">Loading appointments...</div>}
             <div className="table-responsive scrollable-list-50">
               <table className="table align-middle">
-                <thead><tr><th>Date</th><th>Patient</th><th>Telephone</th><th>Office</th><th>Clinician</th><th>Status</th><th className="text-end">Actions</th></tr></thead>
+                <thead><tr><th>Date</th><th>Patient</th><th>Telephone</th><th>Office</th><th>Clinician</th><th>Current prescription status</th><th className="text-end">Actions</th></tr></thead>
                 <tbody>
                 {appointments.map(appointment => (
                   <React.Fragment key={appointment.id}>

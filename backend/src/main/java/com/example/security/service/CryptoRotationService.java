@@ -122,10 +122,13 @@ public class CryptoRotationService {
                 for (PatientAppointmentDocument.PatientClinicalNote note : document.getNotes()) {
                     String subject = oldCrypto.decryptNullable(note.getSubjectEncrypted());
                     String noteText = oldCrypto.decryptNullable(note.getNoteTextEncrypted());
+                    String notePrescription = oldCrypto.decryptNullable(note.getPrescriptionEncrypted());
                     note.setSubjectEncrypted(newCrypto.encryptBlankAsNull(subject));
                     note.setNoteTextEncrypted(newCrypto.encryptBlankAsNull(noteText));
+                    note.setPrescriptionEncrypted(newCrypto.encryptBlankAsNull(notePrescription));
                     note.setSubject(null);
                     note.setNoteText(null);
+                    note.setPrescription(null);
                     notesRotated++;
                 }
 
