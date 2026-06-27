@@ -52,6 +52,19 @@ async function ensureCsrfToken() {
   return body.token ?? decodeURIComponent(getCookie('XSRF-TOKEN') ?? '');
 }
 
+function readApiErrorMessage(text, response) {
+  if (!text) {
+    return `${response.status} ${response.statusText}`;
+  }
+
+  try {
+    const payload = JSON.parse(text);
+    return payload.error || payload.message || text;
+  } catch (err) {
+    return text;
+  }
+}
+
 async function apiFetch(path, options = {}) {
   const method = (options.method ?? 'GET').toUpperCase();
 
@@ -73,7 +86,7 @@ async function apiFetch(path, options = {}) {
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(text || `${response.status} ${response.statusText}`);
+    throw new Error(readApiErrorMessage(text, response));
   }
 
   if (response.status === 204) {
@@ -84,7 +97,12 @@ async function apiFetch(path, options = {}) {
   return contentType.includes('application/json') ? response.json() : response.text();
 }
 
-
+async function validatePasswordOnServer(password) {
+  await apiFetch('/api/password/validate', {
+    method: 'POST',
+    body: JSON.stringify({ password })
+  });
+}
 
 const PAGE_SIZE = 50;
 
@@ -293,6 +311,8 @@ function ResetPasswordScreen({ token, onBackToLogin }) {
     setBusy(true);
 
     try {
+      await validatePasswordOnServer(password);
+
       await apiFetch('/api/password/reset', {
         method: 'POST',
         body: JSON.stringify({ token, password })
@@ -303,7 +323,7 @@ function ResetPasswordScreen({ token, onBackToLogin }) {
       setMessage('Password changed. You can now login.');
       setTimeout(onBackToLogin, 2000);
     } catch (err) {
-      setError('The reset link is invalid or expired.');
+      setError(err.message || 'The reset link is invalid or expired.');
     } finally {
       setBusy(false);
     }
@@ -1439,6 +1459,8 @@ function AdminPanel({ session }) {
     setMessage('');
 
     try {
+      await validatePasswordOnServer(form.password);
+
       await apiFetch('/api/admin/users', {
         method: 'POST',
         body: JSON.stringify(form)
@@ -1448,7 +1470,7 @@ function AdminPanel({ session }) {
       setMessage('User created. If an email was entered, a verification email has been sent.');
       await loadUsers();
     } catch (err) {
-      setError('Could not create user. Username may already exist.');
+      setError(err.message || 'Could not create user. Username may already exist.');
     }
   }
 
@@ -1491,14 +1513,18 @@ function AdminPanel({ session }) {
     setMessage('');
 
     try {
+      await validatePasswordOnServer(password);
+
       await apiFetch(`/api/admin/users/${encodeURIComponent(username)}/password`, {
         method: 'PUT',
         body: JSON.stringify({ password })
       });
 
       setMessage(`Password updated for ${username}.`);
+      return true;
     } catch (err) {
-      setError(`Could not update password for ${username}.`);
+      setError(err.message || `Could not update password for ${username}.`);
+      return false;
     }
   }
 
@@ -1600,8 +1626,10 @@ function UserRow({ user, currentUsername, onSaveRoles, onProposeEmail, onUpdateP
 
   async function updatePassword() {
     if (!newPassword.trim()) return;
-    await onUpdatePassword(user.username, newPassword);
-    setNewPassword('');
+    const changed = await onUpdatePassword(user.username, newPassword);
+    if (changed) {
+      setNewPassword('');
+    }
   }
 
   async function sendVerification() {
