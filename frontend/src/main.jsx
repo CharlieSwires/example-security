@@ -6,6 +6,7 @@ import './styles.css';
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'https://localhost:8080/ExampleSecurity';
 
 const APP_ROLES = ['PATIENT', 'OFFICE', 'OFFICE_ADMIN', 'HQ', 'SUPER'];
+const OFFICE_ADMIN_MANAGED_ROLES = ['PATIENT', 'OFFICE', 'OFFICE_ADMIN'];
 
 function normaliseRole(role) {
   if (role === 'USER') return 'PATIENT';
@@ -423,7 +424,7 @@ function Dashboard({ session, onLogout }) {
       case 'office':
         return canOffice ? <OfficeClinicianScreen selectedOfficeId={isSuper ? selectedOfficeId : ''} /> : <AccessPanel title="Office / clinicians" />;
       case 'admin':
-        return canOfficeAdmin ? <OfficeAdminScreen selectedOfficeId={isSuper ? selectedOfficeId : ''} /> : <AccessPanel title="Office admin" />;
+        return canOfficeAdmin ? <OfficeAdminScreen session={session} selectedOfficeId={isSuper ? selectedOfficeId : ''} /> : <AccessPanel title="Office admin" />;
       case 'hq':
         return canHq ? <HqScreen onOfficesChanged={loadOfficesForContext} /> : <AccessPanel title="HQ" />;
       case 'super':
@@ -918,7 +919,7 @@ function OfficeClinicianScreen({ selectedOfficeId = '' }) {
   );
 }
 
-function OfficeAdminScreen({ selectedOfficeId = '' }) {
+function OfficeAdminScreen({ session, selectedOfficeId = '' }) {
   const today = new Date().toISOString().slice(0, 10);
   const blankForm = {
     patientUsername: '',
@@ -1090,6 +1091,7 @@ function OfficeAdminScreen({ selectedOfficeId = '' }) {
   }
 
   return (
+    <>
     <section className="row g-4">
       <div className="col-xl-4">
         <div className="card border-0 shadow-sm mb-4">
@@ -1189,6 +1191,15 @@ function OfficeAdminScreen({ selectedOfficeId = '' }) {
         </div>
       </div>
     </section>
+    <AdminPanel
+      session={session}
+      title="OFFICE_ADMIN user administration - Patient / Office roles"
+      managedRoles={OFFICE_ADMIN_MANAGED_ROLES}
+      endpointBase="/api/office-admin/users"
+      selectedOfficeId={selectedOfficeId}
+      defaultOfficeId={selectedOfficeId || form.officeId}
+    />
+    </>
   );
 }
 
@@ -1419,8 +1430,15 @@ function Metric({ title, value }) {
   );
 }
 
-function AdminPanel({ session }) {
-  const blankForm = useMemo(() => ({ username: '', password: '', email: '', officeId: 'goole', displayName: '', telephone: '', roles: ['PATIENT'] }), []);
+function AdminPanel({
+  session,
+  title = 'SUPER user administration - Patient / Office roles',
+  managedRoles = APP_ROLES,
+  endpointBase = '/api/admin/users',
+  selectedOfficeId = '',
+  defaultOfficeId = 'goole'
+}) {
+  const blankForm = useMemo(() => ({ username: '', password: '', email: '', officeId: defaultOfficeId || 'goole', displayName: '', telephone: '', roles: ['PATIENT'] }), [defaultOfficeId]);
   const [users, setUsers] = useState([]);
   const [page, setPage] = useState(0);
   const [pageInfo, setPageInfo] = useState(readPagedPayload([]));
@@ -1428,10 +1446,15 @@ function AdminPanel({ session }) {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
+  function userAdminPath(suffix = '') {
+    const path = `${endpointBase}${suffix}`;
+    return selectedOfficeId ? withOfficeQuery(path, selectedOfficeId) : path;
+  }
+
   async function loadUsers() {
     setError('');
     try {
-      const data = await apiFetch(pagePath('/api/admin/users', page), { method: 'GET' });
+      const data = await apiFetch(pagePath(userAdminPath(), page), { method: 'GET' });
       const pagePayload = readPagedPayload(data);
       setUsers(pagePayload.content);
       setPageInfo(pagePayload);
@@ -1442,7 +1465,11 @@ function AdminPanel({ session }) {
 
   useEffect(() => {
     loadUsers();
-  }, [page]);
+  }, [page, endpointBase, selectedOfficeId]);
+
+  useEffect(() => {
+    setForm(current => ({ ...current, officeId: defaultOfficeId || 'goole' }));
+  }, [defaultOfficeId]);
 
   function toggleRole(role) {
     const currentRoles = normaliseRoles(form.roles);
@@ -1461,9 +1488,9 @@ function AdminPanel({ session }) {
     try {
       await validatePasswordOnServer(form.password);
 
-      await apiFetch('/api/admin/users', {
+      await apiFetch(userAdminPath(), {
         method: 'POST',
-        body: JSON.stringify(form)
+        body: JSON.stringify({ ...form, officeId: selectedOfficeId || form.officeId })
       });
 
       setForm(blankForm);
@@ -1479,7 +1506,7 @@ function AdminPanel({ session }) {
     setMessage('');
 
     try {
-      await apiFetch(`/api/admin/users/${encodeURIComponent(username)}/roles`, {
+      await apiFetch(userAdminPath(`/${encodeURIComponent(username)}/roles`), {
         method: 'PUT',
         body: JSON.stringify({ roles })
       });
@@ -1496,7 +1523,7 @@ function AdminPanel({ session }) {
     setMessage('');
 
     try {
-      await apiFetch(`/api/admin/users/${encodeURIComponent(username)}/email`, {
+      await apiFetch(userAdminPath(`/${encodeURIComponent(username)}/email`), {
         method: 'PUT',
         body: JSON.stringify({ email })
       });
@@ -1515,7 +1542,7 @@ function AdminPanel({ session }) {
     try {
       await validatePasswordOnServer(password);
 
-      await apiFetch(`/api/admin/users/${encodeURIComponent(username)}/password`, {
+      await apiFetch(userAdminPath(`/${encodeURIComponent(username)}/password`), {
         method: 'PUT',
         body: JSON.stringify({ password })
       });
@@ -1533,7 +1560,7 @@ function AdminPanel({ session }) {
     setMessage('');
 
     try {
-      await apiFetch(`/api/admin/users/${encodeURIComponent(username)}`, { method: 'DELETE' });
+      await apiFetch(userAdminPath(`/${encodeURIComponent(username)}`), { method: 'DELETE' });
       setMessage(`${username} deleted.`);
       await loadUsers();
     } catch (err) {
@@ -1545,7 +1572,7 @@ function AdminPanel({ session }) {
     <section className="mt-4">
       <div className="card border-0 shadow-sm">
         <div className="card-header bg-white py-3">
-          <h2 className="h4 fw-bold mb-0">SUPER user administration - Patient / Office roles</h2>
+          <h2 className="h4 fw-bold mb-0">{title}</h2>
         </div>
 
         <div className="card-body">
@@ -1586,7 +1613,7 @@ function AdminPanel({ session }) {
             <div className="col-md-3">
               <label className="form-label">Roles</label>
               <div className="d-flex gap-3 flex-wrap">
-                {APP_ROLES.map(role => (
+                {managedRoles.map(role => (
                   <label className="form-check" key={role}>
                     <input className="form-check-input" type="checkbox" checked={form.roles.includes(role)} onChange={() => toggleRole(role)} />
                     <span className="form-check-label">{role}</span>
@@ -1603,7 +1630,7 @@ function AdminPanel({ session }) {
               <thead><tr><th>Username</th><th>Actual name / telephone</th><th>Email</th><th>Office</th><th>Patient/office roles</th><th>New password</th><th className="text-end">Actions</th></tr></thead>
               <tbody>
               {users.map(user => (
-                <UserRow key={user.id} user={user} currentUsername={session.username} onSaveRoles={saveRoles} onProposeEmail={proposeEmail} onUpdatePassword={updatePassword} onDelete={deleteUser} />
+                <UserRow key={user.id} user={user} currentUsername={session.username} managedRoles={managedRoles} onSaveRoles={saveRoles} onProposeEmail={proposeEmail} onUpdatePassword={updatePassword} onDelete={deleteUser} />
               ))}
               </tbody>
             </table>
@@ -1615,7 +1642,7 @@ function AdminPanel({ session }) {
   );
 }
 
-function UserRow({ user, currentUsername, onSaveRoles, onProposeEmail, onUpdatePassword, onDelete }) {
+function UserRow({ user, currentUsername, managedRoles = APP_ROLES, onSaveRoles, onProposeEmail, onUpdatePassword, onDelete }) {
   const [roles, setRoles] = useState(normaliseRoles(user.roles ?? []));
   const [newPassword, setNewPassword] = useState('');
   const [proposedEmail, setProposedEmail] = useState('');
@@ -1657,7 +1684,7 @@ function UserRow({ user, currentUsername, onSaveRoles, onProposeEmail, onUpdateP
       <td>{user.officeId ? <span className="badge text-bg-light border">{user.officeId}</span> : <span className="text-secondary">Global / none</span>}</td>
       <td>
         <div className="d-flex gap-3 flex-wrap">
-          {APP_ROLES.map(role => (
+          {managedRoles.map(role => (
             <label className="form-check mb-0" key={role}>
               <input className="form-check-input" type="checkbox" checked={roles.includes(role)} onChange={() => toggle(role)} />
               <span className="form-check-label">{role}</span>
