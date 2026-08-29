@@ -101,8 +101,10 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/api/csrf").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/login/mfa").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/email/verify").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/password/forgot").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/password/validate").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/password/reset").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/me").authenticated()
                         .requestMatchers("/api/admin/**").hasRole("SUPER")

@@ -6,6 +6,7 @@ import './styles.css';
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'https://localhost:8080/ExampleSecurity';
 
 const APP_ROLES = ['PATIENT', 'OFFICE', 'OFFICE_ADMIN', 'HQ', 'SUPER'];
+const OFFICE_ADMIN_MANAGED_ROLES = ['PATIENT', 'OFFICE', 'OFFICE_ADMIN'];
 
 function normaliseRole(role) {
   if (role === 'USER') return 'PATIENT';
@@ -52,6 +53,19 @@ async function ensureCsrfToken() {
   return body.token ?? decodeURIComponent(getCookie('XSRF-TOKEN') ?? '');
 }
 
+function readApiErrorMessage(text, response) {
+  if (!text) {
+    return `${response.status} ${response.statusText}`;
+  }
+
+  try {
+    const payload = JSON.parse(text);
+    return payload.error || payload.message || text;
+  } catch (err) {
+    return text;
+  }
+}
+
 async function apiFetch(path, options = {}) {
   const method = (options.method ?? 'GET').toUpperCase();
 
@@ -73,7 +87,7 @@ async function apiFetch(path, options = {}) {
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(text || `${response.status} ${response.statusText}`);
+    throw new Error(readApiErrorMessage(text, response));
   }
 
   if (response.status === 204) {
@@ -84,7 +98,12 @@ async function apiFetch(path, options = {}) {
   return contentType.includes('application/json') ? response.json() : response.text();
 }
 
-
+async function validatePasswordOnServer(password) {
+  await apiFetch('/api/password/validate', {
+    method: 'POST',
+    body: JSON.stringify({ password })
+  });
+}
 
 const PAGE_SIZE = 50;
 
@@ -170,6 +189,8 @@ function roleBadge(role) {
 function LoginScreen({ onLogin, onForgotPassword }) {
   const [username, setUsername] = useState('super');
   const [password, setPassword] = useState('');
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaRequired, setMfaRequired] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -185,15 +206,44 @@ function LoginScreen({ onLogin, onForgotPassword }) {
       });
 
       setPassword('');
-      onLogin({
-        username: auth.username,
-        roles: normaliseRoles(auth.roles ?? [])
-      });
+      if (auth.mfaRequired) {
+        setMfaRequired(true);
+        return;
+      }
+      finishLogin(auth);
     } catch (err) {
-      setError('Login failed. Check the username/password and that the backend is running.');
+      setError(err.message || 'Login failed.');
     } finally {
       setBusy(false);
     }
+  }
+
+  async function verifyMfa(event) {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      const auth = await apiFetch('/api/login/mfa', {
+        method: 'POST',
+        body: JSON.stringify({ code: mfaCode })
+      });
+      setMfaCode('');
+      finishLogin(auth);
+    } catch (err) {
+      setError(err.message || 'The Authy code was not accepted.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function finishLogin(auth) {
+    onLogin({ username: auth.username, roles: normaliseRoles(auth.roles ?? []) });
+  }
+
+  function restartLogin() {
+    setMfaRequired(false);
+    setMfaCode('');
+    setError('');
   }
 
   return (
@@ -201,28 +251,40 @@ function LoginScreen({ onLogin, onForgotPassword }) {
       <div className="card shadow-lg border-0 login-card">
         <div className="card-body p-4 p-md-5">
           <h1 className="h3 mb-2 fw-bold">Optician Hub</h1>
-          <p className="text-secondary mb-4">Login to test Spring Security roles.</p>
+          <p className="text-secondary mb-4">{mfaRequired ? 'Enter the current code from Authy.' : 'Login to test Spring Security roles.'}</p>
 
           {error && <div className="alert alert-danger">{error}</div>}
 
-          <form onSubmit={login}>
-            <div className="mb-3">
-              <label className="form-label">Username</label>
-              <input className="form-control form-control-lg" value={username} onChange={event => setUsername(event.target.value)} autoComplete="username" />
-            </div>
+          {!mfaRequired ? (
+            <form onSubmit={login}>
+              <div className="mb-3">
+                <label className="form-label">Username</label>
+                <input className="form-control form-control-lg" value={username} onChange={event => setUsername(event.target.value)} autoComplete="username" />
+              </div>
 
-            <div className="mb-3">
-              <label className="form-label">Password</label>
-              <input className="form-control form-control-lg" type="password" value={password} onChange={event => setPassword(event.target.value)} autoComplete="current-password" />
-            </div>
+              <div className="mb-3">
+                <label className="form-label">Password</label>
+                <input className="form-control form-control-lg" type="password" value={password} onChange={event => setPassword(event.target.value)} autoComplete="current-password" />
+              </div>
 
-            <button className="btn btn-primary btn-lg w-100" disabled={busy}>{busy ? 'Signing in...' : 'Sign in'}</button>
-          </form>
+              <button className="btn btn-primary btn-lg w-100" disabled={busy}>{busy ? 'Signing in...' : 'Sign in'}</button>
+            </form>
+          ) : (
+            <form onSubmit={verifyMfa}>
+              <div className="mb-3">
+                <label className="form-label">Authy or recovery code</label>
+                <input className="form-control form-control-lg text-center" value={mfaCode} onChange={event => setMfaCode(event.target.value)} autoComplete="one-time-code" inputMode="numeric" autoFocus />
+                <div className="form-text">Authy codes are six digits and normally change every 30 seconds.</div>
+              </div>
+              <button className="btn btn-primary btn-lg w-100" disabled={busy || !mfaCode.trim()}>{busy ? 'Verifying...' : 'Verify MFA'}</button>
+              <button type="button" className="btn btn-link w-100 mt-2" onClick={restartLogin}>Start login again</button>
+            </form>
+          )}
 
-          <button className="btn btn-link px-0 mt-3" onClick={onForgotPassword}>Forgot password?</button>
+          {!mfaRequired && <button className="btn btn-link px-0 mt-3" onClick={onForgotPassword}>Forgot password?</button>}
 
           <p className="small text-secondary mt-4 mb-0">
-            Passwords are posted once to the backend; later API calls use the server-side HttpOnly session cookie.
+            Passwords are posted once to the backend. Accounts with MFA enabled are not given an authenticated session until the Authy challenge succeeds.
           </p>
         </div>
       </div>
@@ -293,6 +355,8 @@ function ResetPasswordScreen({ token, onBackToLogin }) {
     setBusy(true);
 
     try {
+      await validatePasswordOnServer(password);
+
       await apiFetch('/api/password/reset', {
         method: 'POST',
         body: JSON.stringify({ token, password })
@@ -303,7 +367,7 @@ function ResetPasswordScreen({ token, onBackToLogin }) {
       setMessage('Password changed. You can now login.');
       setTimeout(onBackToLogin, 2000);
     } catch (err) {
-      setError('The reset link is invalid or expired.');
+      setError(err.message || 'The reset link is invalid or expired.');
     } finally {
       setBusy(false);
     }
@@ -403,7 +467,7 @@ function Dashboard({ session, onLogout }) {
       case 'office':
         return canOffice ? <OfficeClinicianScreen selectedOfficeId={isSuper ? selectedOfficeId : ''} /> : <AccessPanel title="Office / clinicians" />;
       case 'admin':
-        return canOfficeAdmin ? <OfficeAdminScreen selectedOfficeId={isSuper ? selectedOfficeId : ''} /> : <AccessPanel title="Office admin" />;
+        return canOfficeAdmin ? <OfficeAdminScreen session={session} selectedOfficeId={isSuper ? selectedOfficeId : ''} /> : <AccessPanel title="Office admin" />;
       case 'hq':
         return canHq ? <HqScreen onOfficesChanged={loadOfficesForContext} /> : <AccessPanel title="HQ" />;
       case 'super':
@@ -457,6 +521,8 @@ function Dashboard({ session, onLogout }) {
           {error && <div className="alert alert-danger mt-3 mb-0">{error}</div>}
         </div>
 
+        <MfaPanel />
+
         <div className="screen-tabs card border-0 shadow-sm mb-4">
           <div className="card-body p-2">
             <div className="nav nav-pills flex-column flex-md-row gap-2" role="tablist">
@@ -478,6 +544,136 @@ function Dashboard({ session, onLogout }) {
         {renderScreen()}
       </div>
     </main>
+  );
+}
+
+function MfaPanel() {
+  const [enabled, setEnabled] = useState(false);
+  const [setup, setSetup] = useState(null);
+  const [code, setCode] = useState('');
+  const [recoveryCodes, setRecoveryCodes] = useState([]);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function loadStatus() {
+    try {
+      const status = await apiFetch('/api/mfa/status');
+      setEnabled(Boolean(status.enabled));
+    } catch (err) {
+      setError(err.message || 'Could not read MFA status.');
+    }
+  }
+
+  useEffect(() => { loadStatus(); }, []);
+
+  async function startSetup() {
+    setBusy(true);
+    setError('');
+    setMessage('');
+    setRecoveryCodes([]);
+    try {
+      setSetup(await apiFetch('/api/mfa/setup', { method: 'POST' }));
+      setCode('');
+    } catch (err) {
+      setError(err.message || 'Could not start MFA setup.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function enableMfa() {
+    setBusy(true);
+    setError('');
+    try {
+      const result = await apiFetch('/api/mfa/enable', {
+        method: 'POST',
+        body: JSON.stringify({ code })
+      });
+      setEnabled(true);
+      setSetup(null);
+      setCode('');
+      setRecoveryCodes(result.recoveryCodes ?? []);
+      setMessage('MFA is enabled. Save the recovery codes somewhere secure; they are only shown now.');
+    } catch (err) {
+      setError(err.message || 'Authy code not accepted.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function disableMfa() {
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      await apiFetch('/api/mfa/disable', {
+        method: 'POST',
+        body: JSON.stringify({ code })
+      });
+      setEnabled(false);
+      setCode('');
+      setRecoveryCodes([]);
+      setMessage('MFA has been disabled.');
+    } catch (err) {
+      setError(err.message || 'Authy/recovery code not accepted.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card border-0 shadow-sm mb-4">
+      <div className="card-body p-4">
+        <div className="d-flex flex-wrap justify-content-between align-items-center gap-3">
+          <div>
+            <h2 className="h5 fw-bold mb-1">Multi-factor authentication (Authy)</h2>
+            <div className="text-secondary">Status: <span className={`badge ${enabled ? 'text-bg-success' : 'text-bg-secondary'}`}>{enabled ? 'Enabled' : 'Not enabled'}</span></div>
+          </div>
+          {!enabled && !setup && <button className="btn btn-outline-primary" disabled={busy} onClick={startSetup}>Set up Authy</button>}
+        </div>
+
+        {error && <div className="alert alert-danger mt-3 mb-0">{error}</div>}
+        {message && <div className="alert alert-success mt-3 mb-0">{message}</div>}
+
+        {setup && (
+          <div className="mt-4 border rounded-3 p-3 bg-light">
+            <h3 className="h6 fw-bold">1. Add this account to Authy</h3>
+            <p className="mb-2">In Authy, add an account and scan this QR code. If scanning is unavailable, enter the secret manually.</p>
+            <img src={setup.qrCodeDataUrl} width="220" height="220" alt="Authy MFA QR code" className="bg-white border rounded p-2 mb-3" />
+            <div className="mb-3">
+              <label className="form-label">Manual Authy secret</label>
+              <input className="form-control font-monospace" readOnly value={setup.secret ?? ''} onFocus={event => event.target.select()} />
+            </div>
+            <h3 className="h6 fw-bold">2. Confirm setup</h3>
+            <div className="input-group" style={{ maxWidth: 420 }}>
+              <input className="form-control" placeholder="6-digit Authy code" value={code} onChange={event => setCode(event.target.value)} autoComplete="one-time-code" inputMode="numeric" />
+              <button className="btn btn-primary" disabled={busy || !code.trim()} onClick={enableMfa}>Enable MFA</button>
+            </div>
+          </div>
+        )}
+
+        {enabled && recoveryCodes.length === 0 && (
+          <div className="mt-3">
+            <label className="form-label">Disable MFA using a current Authy code or unused recovery code</label>
+            <div className="input-group" style={{ maxWidth: 520 }}>
+              <input className="form-control" value={code} onChange={event => setCode(event.target.value)} autoComplete="one-time-code" />
+              <button className="btn btn-outline-danger" disabled={busy || !code.trim()} onClick={disableMfa}>Disable MFA</button>
+            </div>
+          </div>
+        )}
+
+        {recoveryCodes.length > 0 && (
+          <div className="mt-4 alert alert-warning">
+            <div className="fw-bold mb-2">Recovery codes — save these now</div>
+            <div className="row g-2 font-monospace">
+              {recoveryCodes.map(item => <div className="col-md-6" key={item}>{item}</div>)}
+            </div>
+            <div className="small mt-2">Each recovery code works once. They are stored only as SHA-256 hashes.</div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -898,7 +1094,7 @@ function OfficeClinicianScreen({ selectedOfficeId = '' }) {
   );
 }
 
-function OfficeAdminScreen({ selectedOfficeId = '' }) {
+function OfficeAdminScreen({ session, selectedOfficeId = '' }) {
   const today = new Date().toISOString().slice(0, 10);
   const blankForm = {
     patientUsername: '',
@@ -1070,6 +1266,7 @@ function OfficeAdminScreen({ selectedOfficeId = '' }) {
   }
 
   return (
+    <>
     <section className="row g-4">
       <div className="col-xl-4">
         <div className="card border-0 shadow-sm mb-4">
@@ -1169,6 +1366,15 @@ function OfficeAdminScreen({ selectedOfficeId = '' }) {
         </div>
       </div>
     </section>
+    <AdminPanel
+      session={session}
+      title="OFFICE_ADMIN user administration - Patient / Office roles"
+      managedRoles={OFFICE_ADMIN_MANAGED_ROLES}
+      endpointBase="/api/office-admin/users"
+      selectedOfficeId={selectedOfficeId}
+      defaultOfficeId={selectedOfficeId || form.officeId}
+    />
+    </>
   );
 }
 
@@ -1399,8 +1605,15 @@ function Metric({ title, value }) {
   );
 }
 
-function AdminPanel({ session }) {
-  const blankForm = useMemo(() => ({ username: '', password: '', email: '', officeId: 'goole', displayName: '', telephone: '', roles: ['PATIENT'] }), []);
+function AdminPanel({
+  session,
+  title = 'SUPER user administration - Patient / Office roles',
+  managedRoles = APP_ROLES,
+  endpointBase = '/api/admin/users',
+  selectedOfficeId = '',
+  defaultOfficeId = 'goole'
+}) {
+  const blankForm = useMemo(() => ({ username: '', password: '', email: '', officeId: defaultOfficeId || 'goole', displayName: '', telephone: '', roles: ['PATIENT'] }), [defaultOfficeId]);
   const [users, setUsers] = useState([]);
   const [page, setPage] = useState(0);
   const [pageInfo, setPageInfo] = useState(readPagedPayload([]));
@@ -1408,10 +1621,15 @@ function AdminPanel({ session }) {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
+  function userAdminPath(suffix = '') {
+    const path = `${endpointBase}${suffix}`;
+    return selectedOfficeId ? withOfficeQuery(path, selectedOfficeId) : path;
+  }
+
   async function loadUsers() {
     setError('');
     try {
-      const data = await apiFetch(pagePath('/api/admin/users', page), { method: 'GET' });
+      const data = await apiFetch(pagePath(userAdminPath(), page), { method: 'GET' });
       const pagePayload = readPagedPayload(data);
       setUsers(pagePayload.content);
       setPageInfo(pagePayload);
@@ -1422,7 +1640,11 @@ function AdminPanel({ session }) {
 
   useEffect(() => {
     loadUsers();
-  }, [page]);
+  }, [page, endpointBase, selectedOfficeId]);
+
+  useEffect(() => {
+    setForm(current => ({ ...current, officeId: defaultOfficeId || 'goole' }));
+  }, [defaultOfficeId]);
 
   function toggleRole(role) {
     const currentRoles = normaliseRoles(form.roles);
@@ -1439,16 +1661,18 @@ function AdminPanel({ session }) {
     setMessage('');
 
     try {
-      await apiFetch('/api/admin/users', {
+      await validatePasswordOnServer(form.password);
+
+      await apiFetch(userAdminPath(), {
         method: 'POST',
-        body: JSON.stringify(form)
+        body: JSON.stringify({ ...form, officeId: selectedOfficeId || form.officeId })
       });
 
       setForm(blankForm);
       setMessage('User created. If an email was entered, a verification email has been sent.');
       await loadUsers();
     } catch (err) {
-      setError('Could not create user. Username may already exist.');
+      setError(err.message || 'Could not create user. Username may already exist.');
     }
   }
 
@@ -1457,7 +1681,7 @@ function AdminPanel({ session }) {
     setMessage('');
 
     try {
-      await apiFetch(`/api/admin/users/${encodeURIComponent(username)}/roles`, {
+      await apiFetch(userAdminPath(`/${encodeURIComponent(username)}/roles`), {
         method: 'PUT',
         body: JSON.stringify({ roles })
       });
@@ -1474,7 +1698,7 @@ function AdminPanel({ session }) {
     setMessage('');
 
     try {
-      await apiFetch(`/api/admin/users/${encodeURIComponent(username)}/email`, {
+      await apiFetch(userAdminPath(`/${encodeURIComponent(username)}/email`), {
         method: 'PUT',
         body: JSON.stringify({ email })
       });
@@ -1491,14 +1715,18 @@ function AdminPanel({ session }) {
     setMessage('');
 
     try {
-      await apiFetch(`/api/admin/users/${encodeURIComponent(username)}/password`, {
+      await validatePasswordOnServer(password);
+
+      await apiFetch(userAdminPath(`/${encodeURIComponent(username)}/password`), {
         method: 'PUT',
         body: JSON.stringify({ password })
       });
 
       setMessage(`Password updated for ${username}.`);
+      return true;
     } catch (err) {
-      setError(`Could not update password for ${username}.`);
+      setError(err.message || `Could not update password for ${username}.`);
+      return false;
     }
   }
 
@@ -1507,7 +1735,7 @@ function AdminPanel({ session }) {
     setMessage('');
 
     try {
-      await apiFetch(`/api/admin/users/${encodeURIComponent(username)}`, { method: 'DELETE' });
+      await apiFetch(userAdminPath(`/${encodeURIComponent(username)}`), { method: 'DELETE' });
       setMessage(`${username} deleted.`);
       await loadUsers();
     } catch (err) {
@@ -1519,7 +1747,7 @@ function AdminPanel({ session }) {
     <section className="mt-4">
       <div className="card border-0 shadow-sm">
         <div className="card-header bg-white py-3">
-          <h2 className="h4 fw-bold mb-0">SUPER user administration - Patient / Office roles</h2>
+          <h2 className="h4 fw-bold mb-0">{title}</h2>
         </div>
 
         <div className="card-body">
@@ -1560,7 +1788,7 @@ function AdminPanel({ session }) {
             <div className="col-md-3">
               <label className="form-label">Roles</label>
               <div className="d-flex gap-3 flex-wrap">
-                {APP_ROLES.map(role => (
+                {managedRoles.map(role => (
                   <label className="form-check" key={role}>
                     <input className="form-check-input" type="checkbox" checked={form.roles.includes(role)} onChange={() => toggleRole(role)} />
                     <span className="form-check-label">{role}</span>
@@ -1577,7 +1805,7 @@ function AdminPanel({ session }) {
               <thead><tr><th>Username</th><th>Actual name / telephone</th><th>Email</th><th>Office</th><th>Patient/office roles</th><th>New password</th><th className="text-end">Actions</th></tr></thead>
               <tbody>
               {users.map(user => (
-                <UserRow key={user.id} user={user} currentUsername={session.username} onSaveRoles={saveRoles} onProposeEmail={proposeEmail} onUpdatePassword={updatePassword} onDelete={deleteUser} />
+                <UserRow key={user.id} user={user} currentUsername={session.username} managedRoles={managedRoles} onSaveRoles={saveRoles} onProposeEmail={proposeEmail} onUpdatePassword={updatePassword} onDelete={deleteUser} />
               ))}
               </tbody>
             </table>
@@ -1589,7 +1817,7 @@ function AdminPanel({ session }) {
   );
 }
 
-function UserRow({ user, currentUsername, onSaveRoles, onProposeEmail, onUpdatePassword, onDelete }) {
+function UserRow({ user, currentUsername, managedRoles = APP_ROLES, onSaveRoles, onProposeEmail, onUpdatePassword, onDelete }) {
   const [roles, setRoles] = useState(normaliseRoles(user.roles ?? []));
   const [newPassword, setNewPassword] = useState('');
   const [proposedEmail, setProposedEmail] = useState('');
@@ -1600,8 +1828,10 @@ function UserRow({ user, currentUsername, onSaveRoles, onProposeEmail, onUpdateP
 
   async function updatePassword() {
     if (!newPassword.trim()) return;
-    await onUpdatePassword(user.username, newPassword);
-    setNewPassword('');
+    const changed = await onUpdatePassword(user.username, newPassword);
+    if (changed) {
+      setNewPassword('');
+    }
   }
 
   async function sendVerification() {
@@ -1629,7 +1859,7 @@ function UserRow({ user, currentUsername, onSaveRoles, onProposeEmail, onUpdateP
       <td>{user.officeId ? <span className="badge text-bg-light border">{user.officeId}</span> : <span className="text-secondary">Global / none</span>}</td>
       <td>
         <div className="d-flex gap-3 flex-wrap">
-          {APP_ROLES.map(role => (
+          {managedRoles.map(role => (
             <label className="form-check mb-0" key={role}>
               <input className="form-check-input" type="checkbox" checked={roles.includes(role)} onChange={() => toggle(role)} />
               <span className="form-check-label">{role}</span>

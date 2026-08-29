@@ -2,6 +2,7 @@ package com.example.security.controller;
 
 import com.example.security.dto.ForgotPasswordRequest;
 import com.example.security.dto.ResetPasswordRequest;
+import com.example.security.dto.UpdatePasswordRequest;
 import com.example.security.security.SecurityAuditService;
 import com.example.security.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -27,6 +28,15 @@ public class PasswordController {
         userService.sendForgotPasswordEmailIfVerifiedEmailExists(request.email());
         auditService.record("PASSWORD_RESET_REQUESTED", null, null, true, "generic_response", httpRequest);
         return Map.of("message", "If that email address is verified, a password reset link has been sent.");
+    }
+
+    @PostMapping("/validate")
+    public Map<String, String> validatePassword(@RequestBody UpdatePasswordRequest request) {
+        userService.validatePassword(request.password());
+        return Map.of(
+                "message", "Password is valid.",
+                "rule", userService.passwordRuleMessage()
+        );
     }
 
     @PostMapping("/reset")

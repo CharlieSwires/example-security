@@ -5,7 +5,9 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 @Document(collection = "users")
@@ -39,6 +41,12 @@ public class AppUser {
     private String displayNameLookupHash;
     private String telephoneEncrypted;
 
+    /** Authenticator-app MFA (RFC 6238 TOTP). Secret is encrypted with FieldCryptoService. */
+    private boolean mfaEnabled;
+    private String totpSecretEncrypted;
+    private List<String> recoveryCodeHashes = new ArrayList<>();
+    private Instant mfaEnrolledAt;
+
     public String getId() { return id; }
     public String getUsername() { return username; }
     public String getEmail() { return email; }
@@ -55,6 +63,10 @@ public class AppUser {
     public String getDisplayNameEncrypted() { return displayNameEncrypted; }
     public String getDisplayNameLookupHash() { return displayNameLookupHash; }
     public String getTelephoneEncrypted() { return telephoneEncrypted; }
+    public boolean isMfaEnabled() { return mfaEnabled; }
+    public String getTotpSecretEncrypted() { return totpSecretEncrypted; }
+    public List<String> getRecoveryCodeHashes() { return recoveryCodeHashes; }
+    public Instant getMfaEnrolledAt() { return mfaEnrolledAt; }
 
     public void setId(String id) { this.id = id; }
     public void setUsername(String username) { this.username = username; }
@@ -72,4 +84,8 @@ public class AppUser {
     public void setDisplayNameEncrypted(String displayNameEncrypted) { this.displayNameEncrypted = displayNameEncrypted; }
     public void setDisplayNameLookupHash(String displayNameLookupHash) { this.displayNameLookupHash = displayNameLookupHash; }
     public void setTelephoneEncrypted(String telephoneEncrypted) { this.telephoneEncrypted = telephoneEncrypted; }
+    public void setMfaEnabled(boolean mfaEnabled) { this.mfaEnabled = mfaEnabled; }
+    public void setTotpSecretEncrypted(String totpSecretEncrypted) { this.totpSecretEncrypted = totpSecretEncrypted; }
+    public void setRecoveryCodeHashes(List<String> recoveryCodeHashes) { this.recoveryCodeHashes = recoveryCodeHashes == null ? new ArrayList<>() : recoveryCodeHashes; }
+    public void setMfaEnrolledAt(Instant mfaEnrolledAt) { this.mfaEnrolledAt = mfaEnrolledAt; }
 }

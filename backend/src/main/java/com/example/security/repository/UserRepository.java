@@ -16,6 +16,7 @@ public interface UserRepository extends MongoRepository<AppUser, String> {
     Optional<AppUser> deleteByUsername(String username);
     long countByRolesContaining(com.example.security.model.Role role);
     Page<AppUser> findAllByOrderByUsernameAsc(Pageable pageable);
+    Page<AppUser> findByOfficeIdOrderByUsernameAsc(String officeId, Pageable pageable);
     List<AppUser> findByOfficeId(String officeId);
     List<AppUser> findByOfficeIdAndRolesContaining(String officeId, com.example.security.model.Role role);
 }

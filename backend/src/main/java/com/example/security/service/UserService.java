@@ -202,8 +202,8 @@ public class UserService {
     }
 
     public boolean resetPasswordWithToken(String rawToken, String newPassword) {
-        if (rawToken == null || rawToken.isBlank() || newPassword == null || newPassword.isBlank()) return false;
-        if (!isPasswordAcceptable(newPassword)) return false;
+        if (rawToken == null || rawToken.isBlank()) return false;
+        validatePassword(newPassword);
         Optional<AppUser> found = userRepository.findByPasswordResetTokenHash(hashToken(rawToken));
         if (found.isEmpty()) return false;
 
@@ -251,16 +251,94 @@ public class UserService {
     }
 
 
-    private void validatePassword(String password) {
+    public void validatePassword(String password) {
         if (!isPasswordAcceptable(password)) {
-            throw new IllegalArgumentException("Password must be at least " + MIN_PASSWORD_LENGTH + " characters");
+            throw new IllegalArgumentException(passwordRuleMessage());
         }
     }
 
-    private boolean isPasswordAcceptable(String password) {
-        return password != null && password.length() >= MIN_PASSWORD_LENGTH;
+    public String passwordRuleMessage() {
+        return "Password must be at least " + MIN_PASSWORD_LENGTH + " characters, "
+                + "contain a number, a lowercase letter, "
+                + "an uppercase letter and a symbol: !@~#$%^&:;+-";
     }
 
+    private boolean isPasswordAcceptable(String password) {
+    	boolean valid = false;
+    	valid = containsLowercase(password);
+    	valid = valid && containsUppercase(password);
+    	valid = valid && containsSymbol(password);
+    	valid = valid && containsNumber(password);
+        return password != null && password.length() >= MIN_PASSWORD_LENGTH && valid;
+    }
+
+    private boolean containsLowercase(String password) {
+    	if (password != null) {
+    		for (int i=0; i< password.length(); i++) {
+    			if (password.charAt(i) >= 'a' && password.charAt(i) <= 'z') {
+    				return true;
+    			}
+    		}
+    	}
+    	return false;
+    }
+    private boolean containsUppercase(String password) {
+    	if (password != null) {
+    		for (int i=0; i< password.length(); i++) {
+    			if (password.charAt(i) >= 'A' && password.charAt(i) <= 'Z') {
+    				return true;
+    			}
+    		}
+    	}
+    	return false;
+    	
+    }
+    private boolean containsSymbol(String password) {
+    	if (password != null) {
+    		for (int i=0; i< password.length(); i++) {
+    			switch (password.charAt(i)) {
+    				case '!':
+    					return true;
+    				case '@':
+    					return true;
+    				case '~':
+    					return true;
+    				case '#':
+    					return true;
+    				case '$':
+    					return true;
+    				case '%':
+    					return true;
+    				case '^':
+    					return true;
+    				case '&':
+    					return true;
+    				case '+':
+    					return true;
+    				case '-':
+    					return true;
+    				case ';':
+    					return true;
+    				case ':':
+    					return true;
+    				default:
+    					break;
+    			}
+    		}
+    	}
+    	return false;	
+    }
+    private boolean containsNumber(String password) {
+    	if (password != null) {
+    		for (int i=0; i< password.length(); i++) {
+    			if (password.charAt(i) >= '0' && password.charAt(i) <= '9') {
+    				return true;
+    			}
+    		}
+    	}
+    	return false;
+   	
+    }
     private void setPassword(AppUser user, String newPassword) {
         byte[] salt = newSalt();
         user.setSalt(salt);
