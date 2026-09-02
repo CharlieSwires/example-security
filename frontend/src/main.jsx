@@ -1538,7 +1538,132 @@ function SuperScreen({ session }) {
       <div className="col-xl-8">
         <AdminPanel session={session} />
       </div>
+      <div className="col-12">
+        <AuditLogPanel />
+      </div>
     </section>
+  );
+}
+
+function AuditLogPanel() {
+  const [events, setEvents] = useState([]);
+  const [page, setPage] = useState(0);
+  const [pageInfo, setPageInfo] = useState(readPagedPayload([]));
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(true);
+  const [refreshNumber, setRefreshNumber] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAuditEvents() {
+      setBusy(true);
+      setError('');
+      try {
+        const data = await apiFetch(pagePath('/api/admin/audit-events', page), { method: 'GET' });
+        if (cancelled) return;
+        const pagePayload = readPagedPayload(data);
+        setEvents(pagePayload.content);
+        setPageInfo(pagePayload);
+      } catch (err) {
+        if (!cancelled) setError(err.message || 'Could not load the audit log.');
+      } finally {
+        if (!cancelled) setBusy(false);
+      }
+    }
+
+    loadAuditEvents();
+    return () => { cancelled = true; };
+  }, [page, refreshNumber]);
+
+  function formatAuditTimestamp(value) {
+    if (!value) return 'Not recorded';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return new Intl.DateTimeFormat('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      timeZoneName: 'short'
+    }).format(date);
+
+  }
+
+  function displayValue(value) {
+    return value === null || value === undefined || value === ''
+      ? <span className="text-secondary">Not recorded</span>
+      : value;
+  }
+
+  function displayDetails(details) {
+    const entries = Object.entries(details ?? {});
+    if (entries.length === 0) return <span className="text-secondary">None</span>;
+    return (
+      <dl className="audit-details mb-0">
+        {entries.map(([key, value]) => (
+          <React.Fragment key={key}>
+            <dt>{key}</dt>
+            <dd>{displayValue(value)}</dd>
+          </React.Fragment>
+        ))}
+      </dl>
+    );
+  }
+
+  return (
+    <div className="card border-0 shadow-sm">
+      <div className="card-header bg-white py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div>
+          <h2 className="h4 fw-bold mb-1">Security audit log</h2>
+          <div className="small text-secondary">Newest events first. Every field stored in MongoDB is shown.</div>
+        </div>
+        <button className="btn btn-outline-primary btn-sm" disabled={busy} onClick={() => setRefreshNumber(value => value + 1)}>
+          {busy ? 'Loading...' : 'Refresh'}
+        </button>
+      </div>
+      <div className="card-body">
+        {error && <div className="alert alert-danger">{error}</div>}
+        {!busy && !error && events.length === 0 && <div className="alert alert-info">No persisted audit events were found.</div>}
+        <div className="table-responsive audit-log-table-container">
+          <table className="table table-striped table-hover align-top audit-log-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Event type</th>
+                <th>Actor</th>
+                <th>Target</th>
+                <th>Client IP</th>
+                <th>Success</th>
+                <th>Reason</th>
+                <th>User agent</th>
+                <th>Details</th>
+                <th>MongoDB ID</th>
+              </tr>
+            </thead>
+            <tbody>
+              {events.map(event => (
+                <tr key={event.id}>
+                  <td className="text-nowrap">{formatAuditTimestamp(event.timestamp)}</td>
+                  <td className="fw-semibold">{displayValue(event.eventType)}</td>
+                  <td>{displayValue(event.actor)}</td>
+                  <td>{displayValue(event.target)}</td>
+                  <td className="text-nowrap">{displayValue(event.clientIp)}</td>
+                  <td><span className={`badge ${event.success ? 'text-bg-success' : 'text-bg-danger'}`}>{event.success ? 'Yes' : 'No'}</span></td>
+                  <td>{displayValue(event.reason)}</td>
+                  <td className="audit-long-value">{displayValue(event.userAgent)}</td>
+                  <td className="audit-long-value">{displayDetails(event.details)}</td>
+                  <td className="audit-id">{displayValue(event.id)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <PaginationControls pageInfo={pageInfo} onPageChange={setPage} />
+      </div>
+    </div>
   );
 }
 

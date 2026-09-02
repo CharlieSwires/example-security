@@ -2,6 +2,7 @@ package com.example.security.security;
 
 import com.example.security.model.AppUser;
 import com.example.security.model.Role;
+import com.example.security.model.SecurityAuditEvent;
 import com.example.security.repository.LoginAttemptRepository;
 import com.example.security.repository.SecurityAuditEventRepository;
 import com.example.security.repository.UserRepository;
@@ -12,18 +13,22 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
+import java.time.Instant;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -83,6 +88,42 @@ class SecurityBehaviorTest {
 
         mockMvc.perform(get("/api/admin/users").with(user("super").roles("SUPER")))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void patientCannotAccessAuditEvents() throws Exception {
+        mockMvc.perform(get("/api/admin/audit-events").with(user("bob").roles("PATIENT")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void superCanSeeEveryAuditEventField() throws Exception {
+        SecurityAuditEvent event = new SecurityAuditEvent();
+        event.setId("audit-123");
+        event.setTimestamp(Instant.parse("2026-09-02T20:15:30Z"));
+        event.setEventType("LOGIN_SUCCESS");
+        event.setActor("super");
+        event.setTarget("super");
+        event.setClientIp("127.0.0.1");
+        event.setUserAgent("test-browser");
+        event.setSuccess(true);
+        event.setReason("authenticated");
+        event.setDetails(Map.of("session", "created"));
+        when(securityAuditEventRepository.findAll(any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(new PageImpl<>(java.util.List.of(event)));
+
+        mockMvc.perform(get("/api/admin/audit-events").with(user("super").roles("SUPER")))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.content[0].id").value("audit-123"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.content[0].timestamp").value("2026-09-02T20:15:30Z"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.content[0].eventType").value("LOGIN_SUCCESS"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.content[0].actor").value("super"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.content[0].target").value("super"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.content[0].clientIp").value("127.0.0.1"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.content[0].userAgent").value("test-browser"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.content[0].success").value(true))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.content[0].reason").value("authenticated"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.content[0].details.session").value("created"));
     }
 
     @Test
