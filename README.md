@@ -540,3 +540,18 @@ In plain English:
 This app is a secure login and user-management system. It lets people sign in, gives different permissions to different kinds of users, lets an administrator manage accounts, verifies emails, resets passwords, and protects the system against common web attacks.
 
 It is the foundation you would build on before adding the actual business features of a real website.
+
+#Super Screen
+
+<img src="Screenshot 2026-09-04 192815.png" alt="Super screen top" width="900">
+<img src="Screenshot 2026-09-04 192922.png" alt="Super screen bottom" width="900">
+
+#HQ Screen
+
+<img src="Screenshot 2026-09-04 193027.png" alt="HQ Screen top" width="900">
+<img src="Screenshot 2026-09-04 193055.png" alt="HQ screen bottom" width="900">
+
+#Office Admin Screen
+
+<img src="Screenshot 2026-09-04 193159.png" alt="Office Admin screen top" width="900">
+<img src="Screenshot 2026-09-04 193221.png" alt="Office Admin screen bottom" width="900">
