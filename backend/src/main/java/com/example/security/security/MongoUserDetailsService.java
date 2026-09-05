@@ -24,7 +24,8 @@ public class MongoUserDetailsService implements UserDetailsService {
 
         return org.springframework.security.core.userdetails.User
                 .withUsername(user.getUsername())
-                .password(UserService.encodedPasswordForSpringSecurity(user.getSalt(), user.getHash()))
+                .password(UserService.encodedPasswordForSpringSecurity(
+                        user.getSalt(), user.getHash(), UserService.effectivePasswordIterations(user)))
                 .roles(user.getRoles().stream()
                         .map(role -> role.normalized().name())
                         .distinct()

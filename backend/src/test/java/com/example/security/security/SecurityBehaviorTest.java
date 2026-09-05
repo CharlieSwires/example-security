@@ -44,6 +44,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "app.security.login.persistent=false",
         "app.security.debug-request-logging=false",
         "app.cors.allowed-origins=https://localhost:5173",
+        "app.crypto.passphrase=test-only-field-crypto-passphrase",
+        "app.crypto.master-salt=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
         "server.ssl.enabled=false"
 })
 @AutoConfigureMockMvc
@@ -175,6 +177,7 @@ class SecurityBehaviorTest {
         user.setUsername(username);
         user.setSalt(salt);
         user.setHash(UserService.hashPassword(salt, password));
+        user.setPasswordIterations(UserService.CURRENT_PASSWORD_ITERATIONS);
         user.setRoles(roles);
         return user;
     }

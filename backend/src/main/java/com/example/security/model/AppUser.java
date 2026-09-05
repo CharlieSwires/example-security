@@ -29,6 +29,8 @@ public class AppUser {
     private Instant passwordResetExpiresAt;
     private byte[] salt;
     private String hash;
+    /** PBKDF2 iteration count used for this password hash. Null/zero means the legacy 65,000 count. */
+    private Integer passwordIterations;
     private Set<Role> roles = new HashSet<>();
 
     /** Office/clinic boundary for PATIENT, OFFICE and OFFICE_ADMIN users. HQ/SUPER may be blank. */
@@ -58,6 +60,7 @@ public class AppUser {
     public Instant getPasswordResetExpiresAt() { return passwordResetExpiresAt; }
     public byte[] getSalt() { return salt; }
     public String getHash() { return hash; }
+    public Integer getPasswordIterations() { return passwordIterations; }
     public Set<Role> getRoles() { return roles; }
     public String getOfficeId() { return officeId; }
     public String getDisplayNameEncrypted() { return displayNameEncrypted; }
@@ -79,6 +82,7 @@ public class AppUser {
     public void setPasswordResetExpiresAt(Instant passwordResetExpiresAt) { this.passwordResetExpiresAt = passwordResetExpiresAt; }
     public void setSalt(byte[] salt) { this.salt = salt; }
     public void setHash(String hash) { this.hash = hash; }
+    public void setPasswordIterations(Integer passwordIterations) { this.passwordIterations = passwordIterations; }
     public void setRoles(Set<Role> roles) { this.roles = roles == null ? new HashSet<>() : roles; }
     public void setOfficeId(String officeId) { this.officeId = officeId == null || officeId.isBlank() ? null : officeId.trim().toLowerCase(); }
     public void setDisplayNameEncrypted(String displayNameEncrypted) { this.displayNameEncrypted = displayNameEncrypted; }

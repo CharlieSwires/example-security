@@ -35,7 +35,7 @@ public class FieldCryptoService {
     public FieldCryptoService(
             @Value("${app.crypto.enabled:true}") boolean enabled,
             @Value("${app.crypto.passphrase:}") String passphrase,
-            @Value("${app.crypto.master-salt:ZXhhbXBsZS1zZWN1cml0eS1kZXYtc2FsdC0yMDI2}") String masterSaltB64
+            @Value("${app.crypto.master-salt:}") String masterSaltB64
     ) {
         this(enabled, passphrase, masterSaltB64, true);
     }
@@ -50,7 +50,7 @@ public class FieldCryptoService {
         if (passphrase == null || passphrase.isBlank()) {
             throw new IllegalStateException("FIELD_CRYPTO_PASSPHRASE/app.crypto.passphrase must be set when field encryption is enabled");
         }
-        byte[] salt = Base64.getDecoder().decode(masterSaltB64);
+        byte[] salt = decodeMasterSalt(masterSaltB64);
         this.key = deriveKey(passphrase.toCharArray(), salt, "field-encryption", "AES");
         this.lookupKey = deriveKey(passphrase.toCharArray(), salt, "field-lookup-hmac", "HmacSHA256");
     }
@@ -63,12 +63,29 @@ public class FieldCryptoService {
         if (passphrase == null || passphrase.isBlank()) {
             throw new IllegalArgumentException("Passphrase is required");
         }
+        decodeMasterSalt(masterSaltB64);
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] bytes = digest.digest(("field-crypto-passphrase-fingerprint-v1:" + masterSaltB64 + ":" + passphrase).getBytes(StandardCharsets.UTF_8));
             return "sha256:" + HexFormat.of().formatHex(bytes);
         } catch (Exception e) {
             throw new IllegalStateException("Could not fingerprint field crypto passphrase", e);
+        }
+    }
+
+    private static byte[] decodeMasterSalt(String masterSaltB64) {
+        if (masterSaltB64 == null || masterSaltB64.isBlank()) {
+            throw new IllegalStateException(
+                    "FIELD_CRYPTO_MASTER_SALT_B64/app.crypto.master-salt must be set when field encryption is enabled");
+        }
+        try {
+            byte[] salt = Base64.getDecoder().decode(masterSaltB64.trim());
+            if (salt.length < 16) {
+                throw new IllegalStateException("FIELD_CRYPTO_MASTER_SALT_B64 must decode to at least 32 random bytes");
+            }
+            return salt;
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalStateException("FIELD_CRYPTO_MASTER_SALT_B64 must be valid Base64", ex);
         }
     }
 

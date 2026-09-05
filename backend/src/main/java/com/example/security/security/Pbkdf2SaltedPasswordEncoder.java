@@ -19,7 +19,8 @@ public class Pbkdf2SaltedPasswordEncoder implements PasswordEncoder {
         secureRandom.nextBytes(salt);
 
         String hash = UserService.hashPassword(salt, rawPassword.toString());
-        return Base64.getEncoder().encodeToString(salt) + ":" + hash;
+        return UserService.encodedPasswordForSpringSecurity(
+                salt, hash, UserService.CURRENT_PASSWORD_ITERATIONS);
     }
 
     @Override
@@ -28,10 +29,21 @@ public class Pbkdf2SaltedPasswordEncoder implements PasswordEncoder {
             return false;
         }
 
-        String[] parts = encodedPassword.split(":", 2);
-        byte[] salt = Base64.getDecoder().decode(parts[0]);
-        String expectedHash = parts[1];
-        String actualHash = UserService.hashPassword(salt, rawPassword.toString());
+        String[] parts = encodedPassword.split(":", 3);
+        if (parts.length != 3) {
+            return false;
+        }
+
+        byte[] salt;
+        int iterations;
+        try {
+            salt = Base64.getDecoder().decode(parts[0]);
+            iterations = Integer.parseInt(parts[1]);
+        } catch (IllegalArgumentException ex) {
+            return false;
+        }
+        String expectedHash = parts[2];
+        String actualHash = UserService.hashPassword(salt, rawPassword.toString(), iterations);
 
         return MessageDigest.isEqual(
                 expectedHash.getBytes(StandardCharsets.UTF_8),

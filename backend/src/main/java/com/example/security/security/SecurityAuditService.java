@@ -77,10 +77,9 @@ public class SecurityAuditService {
         if (request == null) {
             return "unknown";
         }
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
-        }
+        // Tomcat's RemoteIpValve has already replaced this only when the immediate
+        // peer matches server.tomcat.remoteip.internal-proxies. Never parse the
+        // user-controlled forwarding header here.
         return request.getRemoteAddr();
     }
 

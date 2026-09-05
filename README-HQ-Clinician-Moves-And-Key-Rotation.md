@@ -27,12 +27,20 @@ When the rotation starts, the backend writes a document to `crypto_rotation_reco
 The rotation re-encrypts:
 
 - encrypted user actual names and telephone numbers
+- encrypted Authy/TOTP secrets
 - encrypted office addresses and telephone numbers
 - encrypted patient display names and telephone numbers
 - encrypted clinic names
 - encrypted clinician names
 - encrypted prescriptions
 - encrypted clinical note subjects and note text
+
+Records are read and saved in configurable, stable `_id`-ordered pages rather than
+using an unbounded `findAll()`. The default is 100 records per page:
+
+```env
+FIELD_CRYPTO_ROTATION_BATCH_SIZE=100
+```
 
 After a successful rotation, immediately update deployment config:
 

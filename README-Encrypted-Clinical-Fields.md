@@ -35,16 +35,20 @@ Set a real 14+ random word passphrase before real use:
 ```env
 FIELD_CRYPTO_ENABLED=true
 FIELD_CRYPTO_PASSPHRASE=replace this with fourteen or more random words before real use
-FIELD_CRYPTO_MASTER_SALT_B64=ZXhhbXBsZS1zZWN1cml0eS1kZXYtc2FsdC0yMDI2
+FIELD_CRYPTO_MASTER_SALT_B64=<output of: openssl rand -base64 32>
 ```
 
-The default built into `application.yml` is only to stop local development breaking when an old `env.list` is copied over. Do not use the default for real data.
+There are no built-in passphrase or master-salt defaults. When encryption is enabled,
+the backend refuses to start if either value is missing, if the salt is not valid
+Base64, or if it contains fewer than 32 decoded bytes.
 
 Keep the phrase out of Git. Put it in `env.list`, Docker secrets, Kubernetes secrets, AWS Secrets Manager, Azure Key Vault, or your chosen secret store.
 
 ## Key change warning
 
-Changing `FIELD_CRYPTO_PASSPHRASE` or `FIELD_CRYPTO_MASTER_SALT_B64` after data has been written means the existing encrypted fields cannot be decrypted unless you first migrate/rewrap them. For production, add a formal key registry and key-rotation job before changing live keys.
+Do not change `FIELD_CRYPTO_MASTER_SALT_B64` after data has been written. Rotate the
+passphrase through the SUPER key-rotation screen first; this includes Authy/TOTP
+secrets and operates in bounded pages. Then restart every backend with the new phrase.
 
 ## Existing old demo records
 

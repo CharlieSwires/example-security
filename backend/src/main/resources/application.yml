@@ -1,6 +1,13 @@
 server:
   port: 8080
-  forward-headers-strategy: framework
+  # Tomcat only honours forwarding headers received from an internal/trusted proxy.
+  # Direct clients cannot spoof the address used by auditing and login throttling.
+  forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      remote-ip-header: X-Forwarded-For
+      protocol-header: X-Forwarded-Proto
+      internal-proxies: ${TRUSTED_PROXY_REGEX:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|169\.254\.\d{1,3}\.\d{1,3}|127\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|0:0:0:0:0:0:0:1|::1}
   servlet:
     context-path: /ExampleSecurity
     session:
@@ -52,8 +59,9 @@ app:
 
   crypto:
     enabled: ${FIELD_CRYPTO_ENABLED:true}
-    passphrase: ${FIELD_CRYPTO_PASSPHRASE:dev-only-change-me-fourteen-random-words-before-real-use}
-    master-salt: ${FIELD_CRYPTO_MASTER_SALT_B64:ZXhhbXBsZS1zZWN1cml0eS1kZXYtc2FsdC0yMDI2}
+    passphrase: ${FIELD_CRYPTO_PASSPHRASE:}
+    master-salt: ${FIELD_CRYPTO_MASTER_SALT_B64:}
+    rotation-batch-size: ${FIELD_CRYPTO_ROTATION_BATCH_SIZE:100}
   security:
     debug-request-logging: ${SECURITY_DEBUG_REQUEST_LOGGING:false}
     audit:

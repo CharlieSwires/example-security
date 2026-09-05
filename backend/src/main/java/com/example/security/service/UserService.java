@@ -31,7 +31,8 @@ import java.util.Set;
 @Service
 public class UserService {
     private static final int SALT_BYTES = 20;
-    private static final int ITERATIONS = 65_000;
+    public static final int CURRENT_PASSWORD_ITERATIONS = 600_000;
+    public static final int LEGACY_PASSWORD_ITERATIONS = 65_000;
     private static final int KEY_LENGTH_BITS = 256;
     private static final Duration EMAIL_TOKEN_LIFETIME = Duration.ofHours(24);
     private static final Duration PASSWORD_RESET_TOKEN_LIFETIME = Duration.ofMinutes(30);
@@ -78,6 +79,7 @@ public class UserService {
         user.setUsername(username.trim());
         user.setSalt(salt);
         user.setHash(hashPassword(salt, password));
+        user.setPasswordIterations(CURRENT_PASSWORD_ITERATIONS);
         user.setRoles(normalizeRoles(roles));
         user.setOfficeId(normalizeOfficeId(officeId));
         user.setDisplayNameEncrypted(crypto.encryptBlankAsNull(displayName));
@@ -343,6 +345,25 @@ public class UserService {
         byte[] salt = newSalt();
         user.setSalt(salt);
         user.setHash(hashPassword(salt, newPassword));
+        user.setPasswordIterations(CURRENT_PASSWORD_ITERATIONS);
+    }
+
+    /**
+     * Transparently upgrades hashes created before the iteration count was stored.
+     * Call only after Spring Security has successfully verified the supplied password.
+     */
+    public void upgradePasswordHashIfNeeded(String username, String verifiedPassword) {
+        AppUser user = userRepository.findByUsername(username).orElse(null);
+        if (user == null || effectivePasswordIterations(user) >= CURRENT_PASSWORD_ITERATIONS) {
+            return;
+        }
+        setPassword(user, verifiedPassword);
+        userRepository.save(user);
+    }
+
+    public static int effectivePasswordIterations(AppUser user) {
+        Integer stored = user.getPasswordIterations();
+        return stored == null || stored <= 0 ? LEGACY_PASSWORD_ITERATIONS : stored;
     }
 
     private byte[] newSalt() {
@@ -367,9 +388,16 @@ public class UserService {
     }
 
     public static String hashPassword(byte[] salt, String password) {
+        return hashPassword(salt, password, CURRENT_PASSWORD_ITERATIONS);
+    }
+
+    public static String hashPassword(byte[] salt, String password, int iterations) {
+        if (iterations < LEGACY_PASSWORD_ITERATIONS) {
+            throw new IllegalArgumentException("PBKDF2 iteration count is below the supported minimum");
+        }
         try {
             SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256", "BC");
-            KeySpec keySpec = new PBEKeySpec(password.toCharArray(), salt, ITERATIONS, KEY_LENGTH_BITS);
+            KeySpec keySpec = new PBEKeySpec(password.toCharArray(), salt, iterations, KEY_LENGTH_BITS);
             SecretKey secretKey = factory.generateSecret(keySpec);
             return Base64.getEncoder().encodeToString(secretKey.getEncoded());
         } catch (Exception e) {
@@ -377,7 +405,7 @@ public class UserService {
         }
     }
 
-    public static String encodedPasswordForSpringSecurity(byte[] salt, String hash) {
-        return Base64.getEncoder().encodeToString(salt) + ":" + hash;
+    public static String encodedPasswordForSpringSecurity(byte[] salt, String hash, int iterations) {
+        return Base64.getEncoder().encodeToString(salt) + ":" + iterations + ":" + hash;
     }
 }

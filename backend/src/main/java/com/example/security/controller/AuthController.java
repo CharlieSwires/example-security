@@ -7,6 +7,7 @@ import com.example.security.dto.MfaVerifyRequest;
 import com.example.security.security.LoginAttemptService;
 import com.example.security.security.SecurityAuditService;
 import com.example.security.service.MfaService;
+import com.example.security.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -48,6 +49,7 @@ public class AuthController {
     private final SecurityAuditService auditService;
     private final MfaService mfaService;
     private final UserDetailsService userDetailsService;
+    private final UserService userService;
 
     public AuthController(
             AuthenticationManager authenticationManager,
@@ -56,7 +58,8 @@ public class AuthController {
             LoginAttemptService loginAttemptService,
             SecurityAuditService auditService,
             MfaService mfaService,
-            UserDetailsService userDetailsService
+            UserDetailsService userDetailsService,
+            UserService userService
     ) {
         this.authenticationManager = authenticationManager;
         this.securityContextRepository = securityContextRepository;
@@ -65,6 +68,7 @@ public class AuthController {
         this.auditService = auditService;
         this.mfaService = mfaService;
         this.userDetailsService = userDetailsService;
+        this.userService = userService;
     }
 
     @PostMapping("/login")
@@ -101,6 +105,8 @@ public class AuthController {
             auditService.record("LOGIN_FAILURE", username, username, false, "bad_credentials", httpRequest);
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid username or password");
         }
+
+        userService.upgradePasswordHashIfNeeded(authentication.getName(), request.password());
 
         if (mfaService.isEnabled(authentication.getName())) {
             HttpSession session = httpRequest.getSession(true);
