@@ -31,7 +31,7 @@ The project is a working security and clinical-workflow foundation. It is suitab
 - CSRF protection for state-changing requests.
 - Authy-compatible RFC 6238 TOTP multi-factor authentication.
 - Single-use recovery codes stored only as SHA-256 hashes.
-- Login throttling by username/IP and by IP, optionally persisted in MongoDB.
+- Login throttling by username/IP and by IP, default persisted in MongoDB.
 - Verified-email workflow and non-enumerating password reset.
 - Protection against deleting or demoting the final `SUPER` account.
 
