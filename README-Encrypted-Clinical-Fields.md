@@ -40,15 +40,22 @@ FIELD_CRYPTO_MASTER_SALT_B64=<output of: openssl rand -base64 32>
 
 There are no built-in passphrase or master-salt defaults. When encryption is enabled,
 the backend refuses to start if either value is missing, if the salt is not valid
-Base64, or if it contains fewer than 32 decoded bytes.
+Base64, or if it contains fewer than 16 decoded bytes. The lower limit exists only
+so databases created with the earlier development salt can still start and be
+rotated; every newly generated salt must contain at least 32 random bytes.
 
 Keep the phrase out of Git. Put it in `env.list`, Docker secrets, Kubernetes secrets, AWS Secrets Manager, Azure Key Vault, or your chosen secret store.
 
 ## Key change warning
 
-Do not change `FIELD_CRYPTO_MASTER_SALT_B64` after data has been written. Rotate the
-passphrase through the SUPER key-rotation screen first; this includes Authy/TOTP
-secrets and operates in bounded pages. Then restart every backend with the new phrase.
+Do not change either field-encryption value after data has been written without
+first re-encrypting every protected field. The live web application deliberately
+has no rotation endpoint or key-entry screen.
+
+Use the separate offline `example-security-key-rotator` maintenance application.
+Take and verify a backup, stop every backend instance, run its dry check and
+rotation, update both deployment secrets, and only then restart the backends. The
+offline utility includes Authy/TOTP secrets and processes MongoDB in bounded batches.
 
 ## Existing old demo records
 

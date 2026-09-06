@@ -112,21 +112,21 @@ class SecurityBehaviorTest {
     }
 
     @Test
-    void patientCannotRotateFieldEncryptionKeyOrSalt() throws Exception {
-        mockMvc.perform(post("/api/admin/crypto/rotate")
-                        .with(user("bob").roles("PATIENT"))
-                        .with(csrf())
-                        .contentType("application/json")
-                        .content("{}"))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
     void superCanAccessAdminUsers() throws Exception {
         when(userRepository.findAll()).thenReturn(java.util.List.of());
 
         mockMvc.perform(get("/api/admin/users").with(user("super").roles("SUPER")))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void cryptoRotationEndpointIsNotPartOfTheLiveApplication() throws Exception {
+        mockMvc.perform(post("/api/admin/crypto/rotate")
+                        .with(user("super").roles("SUPER"))
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content("{}"))
+                .andExpect(status().isNotFound());
     }
 
     @Test

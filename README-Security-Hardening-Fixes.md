@@ -14,20 +14,18 @@ hashes. After a successful password check, the backend immediately generates a n
 salt and replaces the legacy hash with a 600,000-iteration hash. Users do not need
 to reset their passwords and are not locked out by the upgrade.
 
-## Complete, bounded field-key rotation
+## Offline, bounded field-key rotation
 
-Key rotation now decrypts and re-encrypts `totpSecretEncrypted` as well as user,
-office, appointment, prescription and clinical-note fields. Recovery codes remain
-one-way hashes and therefore do not require encryption-key rotation.
+Key and salt rotation has been removed from the live web UI and backend API. Use
+the separate `example-security-key-rotator` maintenance application while every
+backend instance is stopped. This keeps old and new key material out of browser
+requests and prevents normal application traffic from writing data during a
+rotation.
 
-User, office and appointment collections are processed in stable `_id` order and
-in bounded pages. Configure the page size if required:
-
-```env
-FIELD_CRYPTO_ROTATION_BATCH_SIZE=100
-```
-
-Accepted values are 1 through 1,000.
+The offline utility covers `totpSecretEncrypted` as well as user, office,
+appointment, prescription and clinical-note fields. Recovery codes remain
+one-way hashes and therefore do not require encryption-key rotation. Its batch
+size is configured in that utility rather than in this web application.
 
 ## Mandatory field-encryption secrets
 
@@ -42,7 +40,7 @@ openssl rand -base64 32
 ```
 
 Do not regenerate the salt for an existing database; doing so would make existing
-ciphertext unreadable. Use the SUPER-only rotation screen to decrypt with the
+ciphertext unreadable. Use the separate offline rotator to decrypt with the
 current passphrase/salt pair and re-encrypt with a newly generated 32-byte salt.
 
 ## Trusted proxy addresses

@@ -179,9 +179,14 @@ Login throttling
 The backend includes login throttling to slow brute-force password guessing.
 
 Security-hardening details, including transparent upgrade of legacy password hashes,
-bounded SUPER-only passphrase/master-salt rotation, TOTP-secret rotation, mandatory
-crypto secrets and trusted reverse-proxy handling, are documented in
+offline passphrase/master-salt maintenance, TOTP-secret rotation, mandatory crypto
+secrets and trusted reverse-proxy handling, are documented in
 `README-Security-Hardening-Fixes.md`.
+
+The live React/Spring application does not accept encryption keys or provide a
+database-wide rotation endpoint. Use the separate `example-security-key-rotator`
+maintenance application only after taking a verified backup and stopping every
+backend instance.
 
 The follow-up validation, password-recovery throttling, session revocation,
 office-isolation, authenticated MongoDB and Nginx/CSP changes are documented in

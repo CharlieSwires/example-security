@@ -1520,23 +1520,42 @@ function HqScreen({ onOfficesChanged = () => {} }) {
 function SuperScreen({ session }) {
   return (
     <section className="row g-4">
-      <div className="col-xl-4">
-        <div className="card border-0 shadow-sm mb-4">
-          <div className="card-header bg-white py-3"><h2 className="h5 fw-bold mb-0">System controls</h2></div>
-          <div className="card-body">
-            <p className="text-secondary">SUPER is for system-wide setup, role management, encryption-key operations and emergency administration.</p>
-            <ul className="list-group list-group-flush mb-3">
-              <li className="list-group-item px-0">Create offices and HQ users</li>
-              <li className="list-group-item px-0">Rotate field-encryption 14-word strings</li>
-              <li className="list-group-item px-0">Review audit and security events</li>
-            </ul>
-            <button className="btn btn-outline-danger">Lock encryption keys</button>
+      <div className="col-12">
+        <div className="card border-0 shadow-sm super-overview-card">
+          <div className="card-body p-4">
+            <div className="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+              <div>
+                <div className="text-uppercase small fw-semibold text-primary mb-1">System administration</div>
+                <h2 className="h3 fw-bold mb-2">SUPER control centre</h2>
+                <p className="text-secondary mb-0">Manage system-wide accounts and review persisted security activity.</p>
+              </div>
+              <span className="badge text-bg-dark rounded-pill px-3 py-2">SUPER only</span>
+            </div>
+            <div className="row g-3">
+              <div className="col-md-4">
+                <div className="super-summary-item h-100">
+                  <div className="fw-semibold mb-1">User administration</div>
+                  <div className="small text-secondary">Create accounts, assign roles and manage verified contact details.</div>
+                </div>
+              </div>
+              <div className="col-md-4">
+                <div className="super-summary-item h-100">
+                  <div className="fw-semibold mb-1">Security audit</div>
+                  <div className="small text-secondary">Review the complete, newest-first MongoDB audit trail.</div>
+                </div>
+              </div>
+              <div className="col-md-4">
+                <div className="super-summary-item h-100">
+                  <div className="fw-semibold mb-1">Offline key maintenance</div>
+                  <div className="small text-secondary">Key and salt rotation is performed with the separate maintenance utility while every backend is stopped.</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-        <CryptoRotationPanel />
       </div>
-      <div className="col-xl-8">
-        <AdminPanel session={session} />
+      <div className="col-12 super-admin-panel">
+        <AdminPanel session={session} title="User and role administration" />
       </div>
       <div className="col-12">
         <AuditLogPanel />
@@ -1661,106 +1680,6 @@ function AuditLogPanel() {
           </table>
         </div>
         <PaginationControls pageInfo={pageInfo} onPageChange={setPage} />
-      </div>
-    </div>
-  );
-}
-
-function CryptoRotationPanel() {
-  const emptyForm = {
-    oldPassphrase: '',
-    newPassphrase: '',
-    confirmNewPassphrase: '',
-    oldMasterSaltB64: '',
-    newMasterSaltB64: '',
-    confirmNewMasterSaltB64: ''
-  };
-  const [form, setForm] = useState(emptyForm);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  function generateMasterSalt() {
-    const bytes = new Uint8Array(32);
-    window.crypto.getRandomValues(bytes);
-    const generated = window.btoa(Array.from(bytes, byte => String.fromCharCode(byte)).join(''));
-    setForm({ ...form, newMasterSaltB64: generated, confirmNewMasterSaltB64: generated });
-  }
-
-  function decodedSaltLength(value) {
-    try {
-      return window.atob(value.trim()).length;
-    } catch (err) {
-      return -1;
-    }
-  }
-
-  async function rotateKeys(event) {
-    event.preventDefault();
-    setMessage('');
-    setError('');
-    if (form.newPassphrase !== form.confirmNewPassphrase) {
-      setError('The new 14-word strings do not match.');
-      return;
-    }
-    if (form.newMasterSaltB64 !== form.confirmNewMasterSaltB64) {
-      setError('The new master salts do not match.');
-      return;
-    }
-    if (decodedSaltLength(form.newMasterSaltB64) < 32) {
-      setError('The new master salt must be valid Base64 representing at least 32 bytes. Use Generate 32-byte salt.');
-      return;
-    }
-    if (!confirm('This will re-encrypt every sensitive field using the new passphrase/master-salt pair. After it completes, update both FIELD_CRYPTO values and restart every backend container. Continue?')) return;
-    setBusy(true);
-    try {
-      const result = await apiFetch('/api/admin/crypto/rotate', {
-        method: 'POST',
-        body: JSON.stringify({
-          oldPassphrase: form.oldPassphrase,
-          newPassphrase: form.newPassphrase,
-          oldMasterSaltB64: form.oldMasterSaltB64,
-          newMasterSaltB64: form.newMasterSaltB64
-        })
-      });
-      setMessage(`Rotation ${result.status}: ${result.usersRotated} users, ${result.officesRotated} offices, ${result.appointmentsRotated} appointments and ${result.notesRotated} notes re-encrypted. Update both FIELD_CRYPTO values, then restart all backend containers.`);
-      setForm(emptyForm);
-    } catch (err) {
-      setError(err.message || 'Could not rotate the field-encryption key.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="card border-0 shadow-sm">
-      <div className="card-header bg-white py-3"><h2 className="h5 fw-bold mb-0">Rotate field-encryption key and salt</h2></div>
-      <div className="card-body">
-        <p className="text-secondary small">SUPER only. This rotates encrypted database fields from the current passphrase/master-salt pair to a new pair. You may retain the same 14-word passphrase when rotating only the salt.</p>
-        {message && <div className="alert alert-success small">{message}</div>}
-        {error && <div className="alert alert-danger small">{error}</div>}
-        <form onSubmit={rotateKeys}>
-          <label className="form-label">Current 14-word passphrase</label>
-          <input type="password" autoComplete="off" className="form-control mb-2" value={form.oldPassphrase} onChange={event => setForm({ ...form, oldPassphrase: event.target.value })} required />
-          <label className="form-label">Current master salt (Base64)</label>
-          <textarea className="form-control mb-3 font-monospace" autoComplete="off" spellCheck="false" rows="2" value={form.oldMasterSaltB64} onChange={event => setForm({ ...form, oldMasterSaltB64: event.target.value })} required />
-
-          <label className="form-label">New 14-word passphrase</label>
-          <input type="password" autoComplete="new-password" className="form-control mb-2" value={form.newPassphrase} onChange={event => setForm({ ...form, newPassphrase: event.target.value })} required />
-          <label className="form-label">Confirm new 14-word passphrase</label>
-          <input type="password" autoComplete="new-password" className="form-control mb-3" value={form.confirmNewPassphrase} onChange={event => setForm({ ...form, confirmNewPassphrase: event.target.value })} required />
-
-          <div className="d-flex justify-content-between align-items-center gap-2 mb-1">
-            <label className="form-label mb-0">New master salt (Base64)</label>
-            <button type="button" className="btn btn-sm btn-outline-secondary" onClick={generateMasterSalt}>Generate 32-byte salt</button>
-          </div>
-          <textarea className="form-control mb-2 font-monospace" autoComplete="off" spellCheck="false" rows="2" value={form.newMasterSaltB64} onChange={event => setForm({ ...form, newMasterSaltB64: event.target.value })} required />
-          <label className="form-label">Confirm new master salt</label>
-          <textarea className="form-control mb-3 font-monospace" autoComplete="off" spellCheck="false" rows="2" value={form.confirmNewMasterSaltB64} onChange={event => setForm({ ...form, confirmNewMasterSaltB64: event.target.value })} required />
-
-          <button className="btn btn-warning w-100" disabled={busy}>{busy ? 'Rotating...' : 'Rotate encryption key and salt'}</button>
-        </form>
-        <div className="alert alert-secondary small mt-3 mb-0">After success, set FIELD_CRYPTO_PASSPHRASE and FIELD_CRYPTO_MASTER_SALT_B64 to the new values, then restart every backend container. Keep the old pair securely until a backup restore has been tested.</div>
       </div>
     </div>
   );

@@ -12,11 +12,9 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
-import java.security.MessageDigest;
 import java.security.spec.KeySpec;
 import java.util.Locale;
 import java.util.Base64;
-import java.util.HexFormat;
 
 @Service
 public class FieldCryptoService {
@@ -37,10 +35,6 @@ public class FieldCryptoService {
             @Value("${app.crypto.passphrase:}") String passphrase,
             @Value("${app.crypto.master-salt:}") String masterSaltB64
     ) {
-        this(enabled, passphrase, masterSaltB64, true);
-    }
-
-    private FieldCryptoService(boolean enabled, String passphrase, String masterSaltB64, boolean direct) {
         this.enabled = enabled;
         if (!enabled) {
             this.key = null;
@@ -50,50 +44,21 @@ public class FieldCryptoService {
         if (passphrase == null || passphrase.isBlank()) {
             throw new IllegalStateException("FIELD_CRYPTO_PASSPHRASE/app.crypto.passphrase must be set when field encryption is enabled");
         }
-        byte[] salt = decodeMasterSalt(masterSaltB64, 16, false);
+        byte[] salt = decodeMasterSalt(masterSaltB64);
         this.key = deriveKey(passphrase.toCharArray(), salt, "field-encryption", "AES");
         this.lookupKey = deriveKey(passphrase.toCharArray(), salt, "field-lookup-hmac", "HmacSHA256");
     }
 
-    public static FieldCryptoService forPassphrase(String passphrase, String masterSaltB64) {
-        return new FieldCryptoService(true, passphrase, masterSaltB64, true);
-    }
-
-    public static String fingerprintFor(String passphrase, String masterSaltB64) {
-        if (passphrase == null || passphrase.isBlank()) {
-            throw new IllegalArgumentException("Passphrase is required");
-        }
-        decodeMasterSalt(masterSaltB64, 16, false);
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] bytes = digest.digest(("field-crypto-passphrase-fingerprint-v1:" + masterSaltB64 + ":" + passphrase).getBytes(StandardCharsets.UTF_8));
-            return "sha256:" + HexFormat.of().formatHex(bytes);
-        } catch (Exception e) {
-            throw new IllegalStateException("Could not fingerprint field crypto passphrase", e);
-        }
-    }
-
-    public static String requireNewMasterSalt(String masterSaltB64) {
-        try {
-            decodeMasterSalt(masterSaltB64, 32, true);
-            return masterSaltB64.trim();
-        } catch (IllegalStateException ex) {
-            throw new IllegalArgumentException(ex.getMessage(), ex);
-        }
-    }
-
-    private static byte[] decodeMasterSalt(String masterSaltB64, int minimumBytes, boolean newSalt) {
+    private static byte[] decodeMasterSalt(String masterSaltB64) {
         if (masterSaltB64 == null || masterSaltB64.isBlank()) {
             throw new IllegalStateException(
                     "FIELD_CRYPTO_MASTER_SALT_B64/app.crypto.master-salt must be set when field encryption is enabled");
         }
         try {
             byte[] salt = Base64.getDecoder().decode(masterSaltB64.trim());
-            if (salt.length < minimumBytes) {
-                String requirement = newSalt
-                        ? "New FIELD_CRYPTO_MASTER_SALT_B64 must decode to at least 32 random bytes"
-                        : "FIELD_CRYPTO_MASTER_SALT_B64 must decode to at least 16 bytes; use at least 32 random bytes for a new salt";
-                throw new IllegalStateException(requirement);
+            if (salt.length < 16) {
+                throw new IllegalStateException(
+                        "FIELD_CRYPTO_MASTER_SALT_B64 must decode to at least 16 bytes; use at least 32 random bytes for a new salt");
             }
             return salt;
         } catch (IllegalArgumentException ex) {

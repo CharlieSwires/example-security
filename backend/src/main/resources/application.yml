@@ -63,7 +63,6 @@ app:
     enabled: ${FIELD_CRYPTO_ENABLED:true}
     passphrase: ${FIELD_CRYPTO_PASSPHRASE:}
     master-salt: ${FIELD_CRYPTO_MASTER_SALT_B64:}
-    rotation-batch-size: ${FIELD_CRYPTO_ROTATION_BATCH_SIZE:100}
   security:
     max-request-bytes: ${MAX_REQUEST_BYTES:262144}
     debug-request-logging: ${SECURITY_DEBUG_REQUEST_LOGGING:false}
