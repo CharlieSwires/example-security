@@ -15,7 +15,7 @@ That means you can run more than one backend container behind a load balancer wi
 Create or edit `env.list` in the project root:
 
 ```text
-MONGODB_URI=mongodb://mongo:27017/example_security
+MONGODB_URI=mongodb://example_security_app:YOUR_URL_ENCODED_PASSWORD@mongo:27017/example_security?authSource=example_security
 INITIAL_SUPER_USERNAME=super
 INITIAL_SUPER_PASSWORD=ChangeThisPassword123!
 CORS_ALLOWED_ORIGINS=http://localhost:5173

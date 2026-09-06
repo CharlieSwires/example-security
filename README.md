@@ -183,6 +183,10 @@ bounded SUPER-only passphrase/master-salt rotation, TOTP-secret rotation, mandat
 crypto secrets and trusted reverse-proxy handling, are documented in
 `README-Security-Hardening-Fixes.md`.
 
+The follow-up validation, password-recovery throttling, session revocation,
+office-isolation, authenticated MongoDB and Nginx/CSP changes are documented in
+`README-Security-Hardening-Round-2.md`.
+
 Typical defaults:
 
 Rule	Default
@@ -249,7 +253,7 @@ Example:
 # MongoDB
 
 ```text
-MONGODB_URI=mongodb://mongo:27017/example_security
+MONGODB_URI=mongodb://example_security_app:YOUR_URL_ENCODED_PASSWORD@mongo:27017/example_security?authSource=example_security
 ```
 # Initial bootstrap SUPER account
 
@@ -410,12 +414,12 @@ If running without Docker, make sure your MongoDB URI points to a MongoDB instan
 For local MongoDB outside Docker:
 
 ```text
-MONGODB_URI=mongodb://localhost:27017/example_security
+MONGODB_URI=mongodb://example_security_app:YOUR_URL_ENCODED_PASSWORD@localhost:27017/example_security?authSource=example_security
 ```
 For Docker Compose local MongoDB from inside the backend container:
 
 ```text
-MONGODB_URI=mongodb://mongo:27017/example_security
+MONGODB_URI=mongodb://example_security_app:YOUR_URL_ENCODED_PASSWORD@mongo:27017/example_security?authSource=example_security
 ```
 Inside a Docker container, localhost means the container itself, not the MongoDB container.
 

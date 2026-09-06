@@ -1,3 +1,6 @@
 package com.example.security.dto;
 
-public record MoveUserOfficeRequest(String targetOfficeId) {}
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
+public record MoveUserOfficeRequest(@NotBlank @Size(max = 64) String targetOfficeId) {}

@@ -7,6 +7,7 @@ import org.springframework.mail.MailException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
+import org.springframework.scheduling.annotation.Async;
 
 @Service
 public class EmailService {
@@ -20,12 +21,14 @@ public class EmailService {
         this.fromAddress = fromAddress;
     }
 
+    @Async("mailTaskExecutor")
     public void sendVerificationEmail(String toAddress, String verificationUrl) {
         send(toAddress, "Verify your ExampleSecurity email address",
                 "Please verify your email address by opening this link:\n\n" + verificationUrl +
                 "\n\nIf you did not request this, ignore this email.");
     }
 
+    @Async("mailTaskExecutor")
     public void sendPasswordResetEmail(String toAddress, String resetUrl) {
         send(toAddress, "Reset your ExampleSecurity password",
                 "Open this link to change your password:\n\n" + resetUrl +
@@ -41,8 +44,8 @@ public class EmailService {
             message.setText(body);
             mailSender.send(message);
         } catch (MailException ex) {
-            log.error("Could not send email to {}. Body was:\n{}", toAddress, body, ex);
-            throw ex;
+            // Never log verification/reset URLs because they contain bearer tokens.
+            log.error("Could not send email to {} with subject {}", toAddress, subject, ex);
         }
     }
 }

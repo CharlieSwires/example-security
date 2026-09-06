@@ -1,6 +1,7 @@
 package com.example.security.service;
 
 import com.example.security.crypto.FieldCryptoService;
+import com.example.security.controller.ApiConflictException;
 import com.example.security.dto.CryptoKeyRotationRequest;
 import com.example.security.dto.CryptoKeyRotationResponse;
 import com.example.security.model.AppUser;
@@ -74,7 +75,7 @@ public class CryptoRotationService {
         String rotationId = "field-crypto:" + fromFingerprint + ":to:" + toFingerprint;
 
         if (rotationRepository.existsById(rotationId)) {
-            throw new IllegalStateException("This key rotation has already been run or is already in progress. Refusing to run it again.");
+            throw new ApiConflictException("This key rotation has already been run or is already in progress. Refusing to run it again.");
         }
 
         CryptoRotationRecord record = new CryptoRotationRecord();

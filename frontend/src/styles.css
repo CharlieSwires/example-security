@@ -127,3 +127,10 @@ body {
   margin: 0;
   overflow-wrap: anywhere;
 }
+.max-width-420 {
+  max-width: 420px;
+}
+
+.max-width-520 {
+  max-width: 520px;
+}

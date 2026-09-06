@@ -15,6 +15,7 @@ import com.example.security.repository.PatientAppointmentDocumentRepository;
 import com.example.security.repository.UserRepository;
 import com.example.security.repository.OfficeAccountRepository;
 import com.example.security.service.PatientAppointmentMapper;
+import jakarta.validation.Valid;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -28,8 +29,8 @@ import java.util.Set;
 
 @RestController
 public class OfficeAppointmentController {
-    private static final String DEFAULT_OFFICE_ID = "goole";
     private static final int PAGE_SIZE = 50;
+    private static final int MAX_NOTES_PER_APPOINTMENT = 250;
 
     private final PatientAppointmentDocumentRepository appointmentRepository;
     private final UserRepository userRepository;
@@ -116,7 +117,7 @@ public class OfficeAppointmentController {
     @PostMapping("/api/office-admin/appointments")
     @ResponseStatus(HttpStatus.CREATED)
     public PatientAppointmentDocumentDto createAppointment(
-            @RequestBody CreateAppointmentRequest request,
+            @Valid @RequestBody CreateAppointmentRequest request,
             Authentication authentication
     ) {
         AppUser current = currentUser(authentication);
@@ -167,7 +168,7 @@ public class OfficeAppointmentController {
     @PutMapping("/api/office-admin/appointments/{id}/admin")
     public PatientAppointmentDocumentDto updateAppointmentAdmin(
             @PathVariable String id,
-            @RequestBody UpdateAppointmentAdminRequest request,
+            @Valid @RequestBody UpdateAppointmentAdminRequest request,
             Authentication authentication
     ) {
         AppUser current = currentUser(authentication);
@@ -208,7 +209,7 @@ public class OfficeAppointmentController {
     @PutMapping("/api/office-admin/patients/{username}/office")
     public PatientLookupDto movePatientToOffice(
             @PathVariable String username,
-            @RequestBody MoveUserOfficeRequest request,
+            @Valid @RequestBody MoveUserOfficeRequest request,
             Authentication authentication
     ) {
         AppUser current = currentUser(authentication);
@@ -235,7 +236,7 @@ public class OfficeAppointmentController {
     @PutMapping("/api/office-admin/clinicians/{username}/office")
     public PatientLookupDto moveClinicianToOffice(
             @PathVariable String username,
-            @RequestBody MoveUserOfficeRequest request,
+            @Valid @RequestBody MoveUserOfficeRequest request,
             Authentication authentication
     ) {
         AppUser current = currentUser(authentication);
@@ -257,7 +258,7 @@ public class OfficeAppointmentController {
     @PutMapping("/api/office/appointments/{id}/clinical")
     public PatientAppointmentDocumentDto updateClinicalDocument(
             @PathVariable String id,
-            @RequestBody UpdateClinicalDocumentRequest request,
+            @Valid @RequestBody UpdateClinicalDocumentRequest request,
             Authentication authentication
     ) {
         AppUser current = currentUser(authentication);
@@ -272,6 +273,10 @@ public class OfficeAppointmentController {
         }
 
         if (blankToNull(request.noteText()) != null || blankToNull(request.noteSubject()) != null || blankToNull(request.notePrescription()) != null) {
+            if (document.getNotes().size() >= MAX_NOTES_PER_APPOINTMENT) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "This appointment has reached the maximum number of clinical notes");
+            }
             PatientAppointmentDocument.PatientClinicalNote note = new PatientAppointmentDocument.PatientClinicalNote();
             LocalDateTime noteDateTime = request.noteDateTime();
             if (noteDateTime == null) {
@@ -309,8 +314,7 @@ public class OfficeAppointmentController {
 
     private String chooseOfficeId(AppUser current, String requestedOfficeId) {
         if (isHqOrSuper(current)) {
-            String chosen = normalizeOfficeId(requestedOfficeId);
-            return chosen == null ? DEFAULT_OFFICE_ID : chosen;
+            return requireExistingOfficeId(requestedOfficeId);
         }
         return requiredOfficeId(current);
     }
@@ -318,7 +322,12 @@ public class OfficeAppointmentController {
     private String requiredOfficeId(AppUser current) {
         String officeId = normalizeOfficeId(current.getOfficeId());
         if (officeId == null) {
-            return DEFAULT_OFFICE_ID;
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Your account is not assigned to an office");
+        }
+        if (!officeRepository.existsByOfficeId(officeId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Your assigned office does not exist");
         }
         return officeId;
     }

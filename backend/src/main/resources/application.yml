@@ -26,7 +26,9 @@ server:
 spring:
   data:
     mongodb:
-      uri: ${MONGODB_URI:mongodb://localhost:27017/example_security}
+      # Intentionally no unauthenticated fallback: every environment must
+      # provide an authenticated MongoDB connection string.
+      uri: ${MONGODB_URI}
       auto-index-creation: true
   session:
     store-type: mongodb
@@ -63,6 +65,7 @@ app:
     master-salt: ${FIELD_CRYPTO_MASTER_SALT_B64:}
     rotation-batch-size: ${FIELD_CRYPTO_ROTATION_BATCH_SIZE:100}
   security:
+    max-request-bytes: ${MAX_REQUEST_BYTES:262144}
     debug-request-logging: ${SECURITY_DEBUG_REQUEST_LOGGING:false}
     audit:
       persist: ${SECURITY_AUDIT_PERSIST:true}
@@ -72,6 +75,11 @@ app:
       max-ip-failures: ${LOGIN_MAX_IP_FAILURES:25}
       failure-window-minutes: ${LOGIN_FAILURE_WINDOW_MINUTES:15}
       lockout-minutes: ${LOGIN_LOCKOUT_MINUTES:15}
+    password-reset:
+      max-account-requests: ${PASSWORD_RESET_MAX_ACCOUNT_REQUESTS:3}
+      max-ip-requests: ${PASSWORD_RESET_MAX_IP_REQUESTS:20}
+      window-minutes: ${PASSWORD_RESET_WINDOW_MINUTES:60}
+      lockout-minutes: ${PASSWORD_RESET_LOCKOUT_MINUTES:60}
 logging:
   level:
     org.springframework.mail: DEBUG

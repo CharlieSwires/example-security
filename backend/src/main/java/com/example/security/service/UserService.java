@@ -1,10 +1,12 @@
 package com.example.security.service;
 
 import com.example.security.crypto.FieldCryptoService;
+import com.example.security.controller.ApiConflictException;
 import com.example.security.dto.UserDto;
 import com.example.security.model.AppUser;
 import com.example.security.model.Role;
 import com.example.security.repository.UserRepository;
+import com.example.security.security.UserSessionService;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -46,17 +48,20 @@ public class UserService {
     private final EmailService emailService;
     private final SecureRandom secureRandom = new SecureRandom();
     private final FieldCryptoService crypto;
+    private final UserSessionService userSessionService;
     private final String frontendBaseUrl;
     private final String backendBaseUrl;
 
     public UserService(UserRepository userRepository,
                        EmailService emailService,
                        FieldCryptoService crypto,
+                       UserSessionService userSessionService,
                        @Value("${app.frontend-base-url}") String frontendBaseUrl,
                        @Value("${app.backend-base-url}") String backendBaseUrl) {
         this.userRepository = userRepository;
         this.emailService = emailService;
         this.crypto = crypto;
+        this.userSessionService = userSessionService;
         this.frontendBaseUrl = frontendBaseUrl;
         this.backendBaseUrl = backendBaseUrl;
     }
@@ -114,7 +119,9 @@ public class UserService {
             throw new IllegalArgumentException("Cannot remove SUPER from the last SUPER user");
         }
         user.setRoles(nextRoles);
-        return toDto(userRepository.save(user));
+        UserDto updated = toDto(userRepository.save(user));
+        userSessionService.invalidateAllForUser(username);
+        return updated;
     }
 
 
@@ -133,7 +140,9 @@ public class UserService {
         setPassword(user, newPassword);
         user.setPasswordResetTokenHash(null);
         user.setPasswordResetExpiresAt(null);
-        return toDto(userRepository.save(user));
+        UserDto updated = toDto(userRepository.save(user));
+        userSessionService.invalidateAllForUser(username);
+        return updated;
     }
 
     public UserDto proposeEmail(String username, String proposedEmail) {
@@ -184,7 +193,7 @@ public class UserService {
     public void sendPasswordChangeLinkForUsername(String username) {
         AppUser user = userRepository.findByUsername(username).orElseThrow(() -> new IllegalArgumentException("User not found: " + username));
         if (user.getEmail() == null || !user.isEmailVerified()) {
-            throw new IllegalStateException("No verified email is available for this user");
+            throw new ApiConflictException("No verified email is available for this user");
         }
         sendPasswordResetEmail(user);
     }
@@ -216,6 +225,7 @@ public class UserService {
         user.setPasswordResetTokenHash(null);
         user.setPasswordResetExpiresAt(null);
         userRepository.save(user);
+        userSessionService.invalidateAllForUser(user.getUsername());
         return true;
     }
 
@@ -225,6 +235,7 @@ public class UserService {
         if (user.getRoles().contains(Role.SUPER) && userRepository.countByRolesContaining(Role.SUPER) <= 1) {
             throw new IllegalArgumentException("Cannot delete the last SUPER user");
         }
+        userSessionService.invalidateAllForUser(username);
         userRepository.deleteByUsername(username);
     }
 

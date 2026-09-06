@@ -1,3 +1,6 @@
 package com.example.security.dto;
 
-public record UpdatePasswordRequest(String password) {}
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
+public record UpdatePasswordRequest(@NotBlank @Size(max = 256) String password) {}

@@ -6,7 +6,9 @@ import com.example.security.model.SecurityAuditEvent;
 import com.example.security.repository.LoginAttemptRepository;
 import com.example.security.repository.SecurityAuditEventRepository;
 import com.example.security.repository.UserRepository;
+import com.example.security.repository.OfficeAccountRepository;
 import com.example.security.service.UserService;
+import com.example.security.security.UserSessionService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -66,6 +68,12 @@ class SecurityBehaviorTest {
     @MockBean
     SecurityAuditEventRepository securityAuditEventRepository;
 
+    @MockBean
+    OfficeAccountRepository officeAccountRepository;
+
+    @MockBean
+    UserSessionService userSessionService;
+
     @Test
     void unauthenticatedMeReturns401() throws Exception {
         mockMvc.perform(get("/api/me"))
@@ -82,6 +90,26 @@ class SecurityBehaviorTest {
     void officeAdminCannotAccessAdminUsers() throws Exception {
         mockMvc.perform(get("/api/admin/users").with(user("dev").roles("OFFICE_ADMIN")))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void officeAdminWithoutOfficeAssignmentFailsClosed() throws Exception {
+        AppUser officeAdmin = testUser("clinic-admin", "ChangeThisPassword123!", Set.of(Role.OFFICE_ADMIN));
+        officeAdmin.setOfficeId(null);
+        when(userRepository.findByUsername(eq("clinic-admin"))).thenReturn(Optional.of(officeAdmin));
+
+        mockMvc.perform(get("/api/office-admin/users")
+                        .with(user("clinic-admin").roles("OFFICE_ADMIN")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void oversizedLoginFieldIsRejectedBeforeAuthentication() throws Exception {
+        String username = "x".repeat(65);
+        mockMvc.perform(post("/api/login")
+                        .contentType("application/json")
+                        .content("{\"username\":\"" + username + "\",\"password\":\"Password123!\"}"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

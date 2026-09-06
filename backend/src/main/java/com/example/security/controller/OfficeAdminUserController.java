@@ -9,9 +9,11 @@ import com.example.security.dto.UserDto;
 import com.example.security.model.AppUser;
 import com.example.security.model.Role;
 import com.example.security.repository.UserRepository;
+import com.example.security.repository.OfficeAccountRepository;
 import com.example.security.security.SecurityAuditService;
 import com.example.security.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -26,16 +28,19 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/office-admin/users")
 public class OfficeAdminUserController {
     private static final int PAGE_SIZE = 50;
-    private static final String DEFAULT_OFFICE_ID = "goole";
     private static final Set<Role> OFFICE_ADMIN_ALLOWED_ROLES = Set.of(Role.PATIENT, Role.OFFICE, Role.OFFICE_ADMIN);
 
     private final UserService userService;
     private final UserRepository userRepository;
+    private final OfficeAccountRepository officeRepository;
     private final SecurityAuditService auditService;
 
-    public OfficeAdminUserController(UserService userService, UserRepository userRepository, SecurityAuditService auditService) {
+    public OfficeAdminUserController(UserService userService, UserRepository userRepository,
+                                     OfficeAccountRepository officeRepository,
+                                     SecurityAuditService auditService) {
         this.userService = userService;
         this.userRepository = userRepository;
+        this.officeRepository = officeRepository;
         this.auditService = auditService;
     }
 
@@ -50,7 +55,7 @@ public class OfficeAdminUserController {
     }
 
     @PostMapping
-    public UserDto createUser(@RequestBody CreateUserRequest request,
+    public UserDto createUser(@Valid @RequestBody CreateUserRequest request,
                               @RequestParam(required = false) String officeId,
                               Authentication authentication,
                               HttpServletRequest httpRequest) {
@@ -66,7 +71,7 @@ public class OfficeAdminUserController {
 
     @PutMapping("/{username}/roles")
     public UserDto updateRoles(@PathVariable String username,
-                               @RequestBody UpdateRolesRequest request,
+                               @Valid @RequestBody UpdateRolesRequest request,
                                @RequestParam(required = false) String officeId,
                                Authentication authentication,
                                HttpServletRequest httpRequest) {
@@ -81,7 +86,7 @@ public class OfficeAdminUserController {
 
     @PutMapping("/{username}/password")
     public UserDto updatePassword(@PathVariable String username,
-                                  @RequestBody UpdatePasswordRequest request,
+                                  @Valid @RequestBody UpdatePasswordRequest request,
                                   @RequestParam(required = false) String officeId,
                                   Authentication authentication,
                                   HttpServletRequest httpRequest) {
@@ -96,7 +101,7 @@ public class OfficeAdminUserController {
 
     @PutMapping("/{username}/email")
     public UserDto proposeEmail(@PathVariable String username,
-                                @RequestBody UpdateEmailRequest request,
+                                @Valid @RequestBody UpdateEmailRequest request,
                                 @RequestParam(required = false) String officeId,
                                 Authentication authentication,
                                 HttpServletRequest httpRequest) {
@@ -133,14 +138,30 @@ public class OfficeAdminUserController {
     private String chooseOfficeId(AppUser current, String requestedOfficeId) {
         if (isHqOrSuper(current)) {
             String chosen = normalizeOfficeId(requestedOfficeId);
-            return chosen == null ? DEFAULT_OFFICE_ID : chosen;
+            if (chosen == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "HQ/SUPER must select an office");
+            }
+            if (!officeRepository.existsByOfficeId(chosen)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Selected office does not exist");
+            }
+            return chosen;
         }
         return requiredOfficeId(current);
     }
 
     private String requiredOfficeId(AppUser current) {
         String officeId = normalizeOfficeId(current.getOfficeId());
-        return officeId == null ? DEFAULT_OFFICE_ID : officeId;
+        if (officeId == null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Your account is not assigned to an office");
+        }
+        if (!officeRepository.existsByOfficeId(officeId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Your assigned office does not exist");
+        }
+        return officeId;
     }
 
     private boolean isHqOrSuper(AppUser current) {

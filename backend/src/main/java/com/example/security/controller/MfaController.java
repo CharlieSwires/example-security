@@ -7,6 +7,7 @@ import com.example.security.dto.MfaVerifyRequest;
 import com.example.security.service.MfaService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -45,7 +46,7 @@ public class MfaController {
     @PostMapping("/enable")
     public MfaEnableResponse enable(
             Authentication authentication,
-            @RequestBody MfaVerifyRequest request,
+            @Valid @RequestBody MfaVerifyRequest request,
             HttpServletRequest httpRequest
     ) {
         HttpSession session = httpRequest.getSession(false);
@@ -69,7 +70,7 @@ public class MfaController {
     }
 
     @PostMapping("/disable")
-    public MfaStatusResponse disable(Authentication authentication, @RequestBody MfaVerifyRequest request) {
+    public MfaStatusResponse disable(Authentication authentication, @Valid @RequestBody MfaVerifyRequest request) {
         if (!mfaService.disable(authentication.getName(), request.code())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "The Authy/recovery code is not valid");
         }

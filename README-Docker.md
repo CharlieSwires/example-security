@@ -32,10 +32,11 @@ password: ChangeThisPassword123!
 
 ## Local MongoDB
 
-The included `env.list` uses:
+Create `env.list` from `env.list.example`. The included MongoDB service uses
+authentication and the application connects as its least-privilege user:
 
 ```text
-MONGODB_URI=mongodb://mongo:27017/example_security
+MONGODB_URI=mongodb://example_security_app:YOUR_URL_ENCODED_PASSWORD@mongo:27017/example_security?authSource=example_security
 ```
 
 Session documents are stored in:
@@ -62,7 +63,9 @@ Only the load balancer publishes ports to the host:
 frontend load balancer: http://localhost:5173
 backend load balancer:  http://localhost:8080/ExampleSecurity
 mailpit UI:             http://localhost:8025
-mongo local port:       localhost:27017
+mongo local port:       not published
 ```
 
 The individual frontend/backend replicas are internal Docker services.
+See [README-MongoDB-Authentication.md](README-MongoDB-Authentication.md) for
+safe Compass/backup access through an SSH tunnel.

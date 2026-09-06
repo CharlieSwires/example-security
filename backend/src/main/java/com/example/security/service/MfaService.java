@@ -11,6 +11,10 @@ import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 import org.springframework.stereotype.Service;
+import org.springframework.data.mongodb.core.MongoOperations;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -36,15 +40,20 @@ public class MfaService {
     private static final long TOTP_PERIOD_SECONDS = 30;
     private static final int RECOVERY_CODE_COUNT = 10;
     private static final int RECOVERY_CODE_BYTES = 10;
+    private static final int RECOVERY_HASH_SALT_BYTES = 16;
+    private static final String RECOVERY_HASH_PREFIX = "sha256:v2:";
     private static final char[] BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567".toCharArray();
 
     private final UserRepository userRepository;
     private final FieldCryptoService crypto;
+    private final MongoOperations mongoOperations;
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public MfaService(UserRepository userRepository, FieldCryptoService crypto) {
+    public MfaService(UserRepository userRepository, FieldCryptoService crypto,
+                      MongoOperations mongoOperations) {
         this.userRepository = userRepository;
         this.crypto = crypto;
+        this.mongoOperations = mongoOperations;
     }
 
     public boolean isEnabled(String username) {
@@ -86,7 +95,7 @@ public class MfaService {
         for (int i = 0; i < RECOVERY_CODE_COUNT; i++) {
             String code = newRecoveryCode();
             recoveryCodes.add(code);
-            hashes.add(hashRecoveryCode(code));
+            hashes.add(hashRecoveryCodeForStorage(code));
         }
 
         user.setTotpSecretEncrypted(crypto.encryptNullable(secret));
@@ -104,16 +113,16 @@ public class MfaService {
         String secret = crypto.decryptNullable(user.getTotpSecretEncrypted());
         if (verifySecret(secret, suppliedCode)) return true;
 
-        String recoveryHash = hashRecoveryCode(suppliedCode);
         List<String> recoveryHashes = user.getRecoveryCodeHashes();
         if (recoveryHashes == null) return false;
         for (int i = 0; i < recoveryHashes.size(); i++) {
-            if (constantTimeEquals(recoveryHashes.get(i), recoveryHash)) {
-                ArrayList<String> remaining = new ArrayList<>(recoveryHashes);
-                remaining.remove(i);
-                user.setRecoveryCodeHashes(remaining);
-                userRepository.save(user);
-                return true;
+            if (matchesRecoveryCode(recoveryHashes.get(i), suppliedCode)) {
+                String matchedHash = recoveryHashes.get(i);
+                Query query = Query.query(Criteria.where("_id").is(user.getId())
+                        .and("recoveryCodeHashes").is(matchedHash));
+                return mongoOperations.updateFirst(query,
+                        new Update().pull("recoveryCodeHashes", matchedHash), AppUser.class)
+                        .getModifiedCount() == 1;
             }
         }
         return false;
@@ -171,15 +180,57 @@ public class MfaService {
         return hex.substring(0, 5) + "-" + hex.substring(5, 10) + "-" + hex.substring(10, 15) + "-" + hex.substring(15, 20);
     }
 
-    private String hashRecoveryCode(String code) {
-        if (code == null || code.isBlank()) return "";
+    private String hashRecoveryCodeForStorage(String code) {
+        byte[] salt = new byte[RECOVERY_HASH_SALT_BYTES];
+        secureRandom.nextBytes(salt);
+        return RECOVERY_HASH_PREFIX + Base64.getEncoder().encodeToString(salt) + ":"
+                + Base64.getEncoder().encodeToString(recoveryDigest(salt, code));
+    }
+
+    private boolean matchesRecoveryCode(String storedHash, String suppliedCode) {
+        if (storedHash == null || suppliedCode == null) return false;
+        if (storedHash.startsWith(RECOVERY_HASH_PREFIX)) {
+            try {
+                String[] parts = storedHash.substring(RECOVERY_HASH_PREFIX.length()).split(":", 2);
+                if (parts.length != 2) return false;
+                byte[] salt = Base64.getDecoder().decode(parts[0]);
+                String candidate = Base64.getEncoder().encodeToString(recoveryDigest(salt, suppliedCode));
+                return constantTimeEquals(parts[1], candidate);
+            } catch (IllegalArgumentException ex) {
+                return false;
+            }
+        }
+        // Backward compatibility: consume existing unsalted recovery-code hashes.
+        return constantTimeEquals(storedHash, legacyRecoveryHash(suppliedCode));
+    }
+
+    private byte[] recoveryDigest(byte[] salt, String code) {
+        String normalized = normalizeRecoveryCode(code);
+        if (normalized == null) return new byte[0];
         try {
-            String normalized = code.replace("-", "").replace(" ", "").trim().toUpperCase(Locale.ROOT);
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            digest.update(salt);
+            return digest.digest(normalized.getBytes(StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            throw new IllegalStateException("Could not hash MFA recovery code", e);
+        }
+    }
+
+    private String legacyRecoveryHash(String code) {
+        String normalized = normalizeRecoveryCode(code);
+        if (normalized == null) return "";
+        try {
             byte[] hash = MessageDigest.getInstance("SHA-256").digest(normalized.getBytes(StandardCharsets.UTF_8));
             return Base64.getEncoder().encodeToString(hash);
         } catch (Exception e) {
             throw new IllegalStateException("Could not hash MFA recovery code", e);
         }
+    }
+
+    private String normalizeRecoveryCode(String code) {
+        if (code == null || code.isBlank()) return null;
+        String normalized = code.replace("-", "").replace(" ", "").trim().toUpperCase(Locale.ROOT);
+        return normalized.matches("[0-9A-F]{20}") ? normalized : null;
     }
 
     private String normalizeTotp(String code) {

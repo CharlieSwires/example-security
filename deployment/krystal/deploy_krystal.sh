@@ -155,9 +155,14 @@ create_environment_template() {
         printf 'LOGIN_MAX_IP_FAILURES=25\n'
         printf 'LOGIN_FAILURE_WINDOW_MINUTES=15\n'
         printf 'LOGIN_LOCKOUT_MINUTES=15\n'
+        printf 'PASSWORD_RESET_MAX_ACCOUNT_REQUESTS=3\n'
+        printf 'PASSWORD_RESET_MAX_IP_REQUESTS=20\n'
+        printf 'PASSWORD_RESET_WINDOW_MINUTES=60\n'
+        printf 'PASSWORD_RESET_LOCKOUT_MINUTES=60\n'
         printf 'LOGIN_THROTTLE_PERSISTENT=true\n'
         printf 'SECURITY_AUDIT_PERSIST=true\n'
         printf 'SECURITY_DEBUG_REQUEST_LOGGING=false\n'
+        printf 'MAX_REQUEST_BYTES=262144\n'
         printf '\nMAIL_HOST=CHANGE_ME\n'
         printf 'MAIL_PORT=587\n'
         printf 'MAIL_USERNAME=CHANGE_ME\n'
@@ -379,7 +384,7 @@ http {
     server {
         listen 80;
         server_name _;
-        client_max_body_size 10m;
+        client_max_body_size 256k;
 
         location /ExampleSecurity/ {
             proxy_pass http://backend_pool;
@@ -581,7 +586,13 @@ server {
     ssl_session_timeout 1d;
     add_header Strict-Transport-Security "max-age=31536000" always;
 
-    client_max_body_size 10m;
+    client_max_body_size 256k;
+    server_tokens off;
+    add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
 
     location / {
         proxy_pass http://127.0.0.1:18000;

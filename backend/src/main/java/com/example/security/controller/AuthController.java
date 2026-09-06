@@ -8,6 +8,7 @@ import com.example.security.security.LoginAttemptService;
 import com.example.security.security.SecurityAuditService;
 import com.example.security.service.MfaService;
 import com.example.security.service.UserService;
+import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -25,6 +26,8 @@ import org.springframework.security.web.authentication.session.SessionAuthentica
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -36,6 +39,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api")
 public class AuthController {
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
     private static final String MFA_USERNAME = "MFA_LOGIN_USERNAME";
     private static final String MFA_CREATED = "MFA_LOGIN_CREATED";
     private static final String MFA_ATTEMPTS = "MFA_LOGIN_ATTEMPTS";
@@ -73,7 +77,7 @@ public class AuthController {
 
     @PostMapping("/login")
     public LoginResponse login(
-            @RequestBody AuthRequest request,
+            @Valid @RequestBody AuthRequest request,
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse
     ) {
@@ -106,7 +110,16 @@ public class AuthController {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid username or password");
         }
 
-        userService.upgradePasswordHashIfNeeded(authentication.getName(), request.password());
+        try {
+            userService.upgradePasswordHashIfNeeded(authentication.getName(), request.password());
+        } catch (RuntimeException ex) {
+            // Authentication has already succeeded. Do not turn an opportunistic
+            // legacy-hash upgrade failure into a failed login, and never log the password.
+            log.error("Could not upgrade legacy password hash for authenticated user {}",
+                    authentication.getName(), ex);
+            auditService.record("PASSWORD_HASH_UPGRADE_FAILED", authentication.getName(),
+                    authentication.getName(), false, "database_update_failed", httpRequest);
+        }
 
         if (mfaService.isEnabled(authentication.getName())) {
             HttpSession session = httpRequest.getSession(true);
@@ -124,7 +137,7 @@ public class AuthController {
 
     @PostMapping("/login/mfa")
     public LoginResponse verifyMfa(
-            @RequestBody MfaVerifyRequest request,
+            @Valid @RequestBody MfaVerifyRequest request,
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse
     ) {

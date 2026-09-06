@@ -13,7 +13,7 @@ public class MongoUserDetailsService implements UserDetailsService {
 
     private final UserRepository userRepository;
 
-    public MongoUserDetailsService(UserService userService, UserRepository userRepository) {
+    public MongoUserDetailsService(UserRepository userRepository) {
         this.userRepository = userRepository;
     }
 

@@ -646,7 +646,7 @@ function MfaPanel() {
               <input className="form-control font-monospace" readOnly value={setup.secret ?? ''} onFocus={event => event.target.select()} />
             </div>
             <h3 className="h6 fw-bold">2. Confirm setup</h3>
-            <div className="input-group" style={{ maxWidth: 420 }}>
+            <div className="input-group max-width-420">
               <input className="form-control" placeholder="6-digit Authy code" value={code} onChange={event => setCode(event.target.value)} autoComplete="one-time-code" inputMode="numeric" />
               <button className="btn btn-primary" disabled={busy || !code.trim()} onClick={enableMfa}>Enable MFA</button>
             </div>
@@ -656,7 +656,7 @@ function MfaPanel() {
         {enabled && recoveryCodes.length === 0 && (
           <div className="mt-3">
             <label className="form-label">Disable MFA using a current Authy code or unused recovery code</label>
-            <div className="input-group" style={{ maxWidth: 520 }}>
+            <div className="input-group max-width-520">
               <input className="form-control" value={code} onChange={event => setCode(event.target.value)} autoComplete="one-time-code" />
               <button className="btn btn-outline-danger" disabled={busy || !code.trim()} onClick={disableMfa}>Disable MFA</button>
             </div>
@@ -1100,7 +1100,7 @@ function OfficeAdminScreen({ session, selectedOfficeId = '' }) {
     patientUsername: '',
     patientDisplayName: '',
     patientTelephone: '',
-    officeId: selectedOfficeId || 'goole',
+    officeId: selectedOfficeId || '',
     appointmentDate: today,
     appointmentTime: '09:00',
     appointmentType: 'Sight test and refraction',
@@ -1783,9 +1783,9 @@ function AdminPanel({
   managedRoles = APP_ROLES,
   endpointBase = '/api/admin/users',
   selectedOfficeId = '',
-  defaultOfficeId = 'goole'
+  defaultOfficeId = ''
 }) {
-  const blankForm = useMemo(() => ({ username: '', password: '', email: '', officeId: defaultOfficeId || 'goole', displayName: '', telephone: '', roles: ['PATIENT'] }), [defaultOfficeId]);
+  const blankForm = useMemo(() => ({ username: '', password: '', email: '', officeId: defaultOfficeId || '', displayName: '', telephone: '', roles: ['PATIENT'] }), [defaultOfficeId]);
   const [users, setUsers] = useState([]);
   const [page, setPage] = useState(0);
   const [pageInfo, setPageInfo] = useState(readPagedPayload([]));
@@ -1815,7 +1815,7 @@ function AdminPanel({
   }, [page, endpointBase, selectedOfficeId]);
 
   useEffect(() => {
-    setForm(current => ({ ...current, officeId: defaultOfficeId || 'goole' }));
+    setForm(current => ({ ...current, officeId: defaultOfficeId || '' }));
   }, [defaultOfficeId]);
 
   function toggleRole(role) {

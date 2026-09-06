@@ -9,6 +9,7 @@ import com.example.security.dto.PageResponse;
 import com.example.security.security.SecurityAuditService;
 import com.example.security.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -35,7 +36,7 @@ public class AdminUserController {
     }
 
     @PostMapping
-    public UserDto createUser(@RequestBody CreateUserRequest request, Authentication authentication, HttpServletRequest httpRequest) {
+    public UserDto createUser(@Valid @RequestBody CreateUserRequest request, Authentication authentication, HttpServletRequest httpRequest) {
         UserDto created = userService.toDto(userService.createUser(request.username(), request.password(), request.email(), request.roles(), request.officeId(), request.displayName(), request.telephone()));
         auditService.record("USER_CREATED", authentication.getName(), created.username(), true, "admin_created_user", httpRequest,
                 Map.of("roles", String.valueOf(created.roles())));
@@ -43,7 +44,7 @@ public class AdminUserController {
     }
 
     @PutMapping("/{username}/roles")
-    public UserDto updateRoles(@PathVariable String username, @RequestBody UpdateRolesRequest request,
+    public UserDto updateRoles(@PathVariable String username, @Valid @RequestBody UpdateRolesRequest request,
                                Authentication authentication, HttpServletRequest httpRequest) {
         UserDto updated = userService.updateRoles(username, request.roles());
         auditService.record("USER_ROLES_CHANGED", authentication.getName(), username, true, "admin_changed_roles", httpRequest,
@@ -52,7 +53,7 @@ public class AdminUserController {
     }
 
     @PutMapping("/{username}/password")
-    public UserDto updatePassword(@PathVariable String username, @RequestBody UpdatePasswordRequest request,
+    public UserDto updatePassword(@PathVariable String username, @Valid @RequestBody UpdatePasswordRequest request,
                                   Authentication authentication, HttpServletRequest httpRequest) {
         UserDto updated = userService.updatePassword(username, request.password());
         auditService.record("USER_PASSWORD_CHANGED_BY_ADMIN", authentication.getName(), username, true, "admin_changed_password", httpRequest);
@@ -60,7 +61,7 @@ public class AdminUserController {
     }
 
     @PutMapping("/{username}/email")
-    public UserDto proposeEmail(@PathVariable String username, @RequestBody UpdateEmailRequest request,
+    public UserDto proposeEmail(@PathVariable String username, @Valid @RequestBody UpdateEmailRequest request,
                                 Authentication authentication, HttpServletRequest httpRequest) {
         UserDto updated = userService.proposeEmail(username, request.email());
         auditService.record("EMAIL_VERIFICATION_REQUESTED", authentication.getName(), username, true, "admin_proposed_email", httpRequest);

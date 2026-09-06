@@ -1,4 +1,10 @@
 package com.example.security.dto;
 
-public record AuthRequest(String username, String password) {
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
+public record AuthRequest(
+        @NotBlank @Size(max = 64) String username,
+        @NotBlank @Size(max = 256) String password
+) {
 }
