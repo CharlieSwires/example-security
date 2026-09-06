@@ -85,6 +85,16 @@ class SecurityBehaviorTest {
     }
 
     @Test
+    void patientCannotRotateFieldEncryptionKeyOrSalt() throws Exception {
+        mockMvc.perform(post("/api/admin/crypto/rotate")
+                        .with(user("bob").roles("PATIENT"))
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content("{}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void superCanAccessAdminUsers() throws Exception {
         when(userRepository.findAll()).thenReturn(java.util.List.of());
 

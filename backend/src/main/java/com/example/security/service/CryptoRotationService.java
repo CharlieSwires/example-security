@@ -51,22 +51,25 @@ public class CryptoRotationService {
     }
 
     /**
-     * Rotates encrypted database fields from the old 14-word phrase to the new one.
+     * Rotates encrypted database fields from the old passphrase/salt pair to the new pair.
      * This is deliberately a one-shot operation identified by old/new key fingerprints.
-     * After it succeeds, restart the deployment using FIELD_CRYPTO_PASSPHRASE=new phrase.
+     * After it succeeds, restart the deployment using both new FIELD_CRYPTO values.
      */
     public CryptoKeyRotationResponse rotate(CryptoKeyRotationRequest request) {
         String oldPassphrase = requireText(request.oldPassphrase(), "Old 14-word string is required");
         String newPassphrase = requireText(request.newPassphrase(), "New 14-word string is required");
-        if (oldPassphrase.equals(newPassphrase)) {
-            throw new IllegalArgumentException("Old and new 14-word strings must be different");
-        }
+        String oldMasterSaltB64 = requireText(request.oldMasterSaltB64(), "Old master salt is required");
+        String newMasterSaltB64 = FieldCryptoService.requireNewMasterSalt(
+                requireText(request.newMasterSaltB64(), "New master salt is required"));
 
-        String fromFingerprint = FieldCryptoService.fingerprintFor(oldPassphrase, masterSaltB64);
-        String toFingerprint = FieldCryptoService.fingerprintFor(newPassphrase, masterSaltB64);
+        String fromFingerprint = FieldCryptoService.fingerprintFor(oldPassphrase, oldMasterSaltB64);
+        String toFingerprint = FieldCryptoService.fingerprintFor(newPassphrase, newMasterSaltB64);
         String activeFingerprint = FieldCryptoService.fingerprintFor(requireText(activePassphrase, "Active FIELD_CRYPTO_PASSPHRASE is not configured"), masterSaltB64);
         if (!fromFingerprint.equals(activeFingerprint)) {
-            throw new IllegalArgumentException("The old 14-word string does not match the key currently used by this running backend. No rotation was started.");
+            throw new IllegalArgumentException("The old passphrase and master salt do not match the key currently used by this running backend. No rotation was started.");
+        }
+        if (fromFingerprint.equals(toFingerprint)) {
+            throw new IllegalArgumentException("The new passphrase/master-salt pair must be different from the current pair");
         }
         String rotationId = "field-crypto:" + fromFingerprint + ":to:" + toFingerprint;
 
@@ -82,8 +85,8 @@ public class CryptoRotationService {
         record.setStartedAt(Instant.now());
         rotationRepository.save(record);
 
-        FieldCryptoService oldCrypto = FieldCryptoService.forPassphrase(oldPassphrase, masterSaltB64);
-        FieldCryptoService newCrypto = FieldCryptoService.forPassphrase(newPassphrase, masterSaltB64);
+        FieldCryptoService oldCrypto = FieldCryptoService.forPassphrase(oldPassphrase, oldMasterSaltB64);
+        FieldCryptoService newCrypto = FieldCryptoService.forPassphrase(newPassphrase, newMasterSaltB64);
 
         long usersRotated = 0;
         long officesRotated = 0;
@@ -103,7 +106,7 @@ public class CryptoRotationService {
             record.setNotesRotated(notesRotated);
             record.setStatus("COMPLETED");
             record.setCompletedAt(Instant.now());
-            record.setMessage("Restart all backend containers with FIELD_CRYPTO_PASSPHRASE set to the new 14-word string.");
+            record.setMessage("Restart all backend containers with both FIELD_CRYPTO_PASSPHRASE and FIELD_CRYPTO_MASTER_SALT_B64 set to their new values.");
             rotationRepository.save(record);
             return new CryptoKeyRotationResponse(rotationId, usersRotated, officesRotated, appointmentsRotated, notesRotated, "COMPLETED");
         } catch (RuntimeException ex) {

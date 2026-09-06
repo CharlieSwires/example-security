@@ -42,7 +42,8 @@ openssl rand -base64 32
 ```
 
 Do not regenerate the salt for an existing database; doing so would make existing
-ciphertext unreadable.
+ciphertext unreadable. Use the SUPER-only rotation screen to decrypt with the
+current passphrase/salt pair and re-encrypt with a newly generated 32-byte salt.
 
 ## Trusted proxy addresses
 

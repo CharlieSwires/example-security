@@ -179,8 +179,9 @@ Login throttling
 The backend includes login throttling to slow brute-force password guessing.
 
 Security-hardening details, including transparent upgrade of legacy password hashes,
-bounded encryption-key rotation, TOTP-secret rotation, mandatory crypto secrets and
-trusted reverse-proxy handling, are documented in `README-Security-Hardening-Fixes.md`.
+bounded SUPER-only passphrase/master-salt rotation, TOTP-secret rotation, mandatory
+crypto secrets and trusted reverse-proxy handling, are documented in
+`README-Security-Hardening-Fixes.md`.
 
 Typical defaults:
 

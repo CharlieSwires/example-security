@@ -50,7 +50,7 @@ public class FieldCryptoService {
         if (passphrase == null || passphrase.isBlank()) {
             throw new IllegalStateException("FIELD_CRYPTO_PASSPHRASE/app.crypto.passphrase must be set when field encryption is enabled");
         }
-        byte[] salt = decodeMasterSalt(masterSaltB64);
+        byte[] salt = decodeMasterSalt(masterSaltB64, 16, false);
         this.key = deriveKey(passphrase.toCharArray(), salt, "field-encryption", "AES");
         this.lookupKey = deriveKey(passphrase.toCharArray(), salt, "field-lookup-hmac", "HmacSHA256");
     }
@@ -63,7 +63,7 @@ public class FieldCryptoService {
         if (passphrase == null || passphrase.isBlank()) {
             throw new IllegalArgumentException("Passphrase is required");
         }
-        decodeMasterSalt(masterSaltB64);
+        decodeMasterSalt(masterSaltB64, 16, false);
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] bytes = digest.digest(("field-crypto-passphrase-fingerprint-v1:" + masterSaltB64 + ":" + passphrase).getBytes(StandardCharsets.UTF_8));
@@ -73,15 +73,27 @@ public class FieldCryptoService {
         }
     }
 
-    private static byte[] decodeMasterSalt(String masterSaltB64) {
+    public static String requireNewMasterSalt(String masterSaltB64) {
+        try {
+            decodeMasterSalt(masterSaltB64, 32, true);
+            return masterSaltB64.trim();
+        } catch (IllegalStateException ex) {
+            throw new IllegalArgumentException(ex.getMessage(), ex);
+        }
+    }
+
+    private static byte[] decodeMasterSalt(String masterSaltB64, int minimumBytes, boolean newSalt) {
         if (masterSaltB64 == null || masterSaltB64.isBlank()) {
             throw new IllegalStateException(
                     "FIELD_CRYPTO_MASTER_SALT_B64/app.crypto.master-salt must be set when field encryption is enabled");
         }
         try {
             byte[] salt = Base64.getDecoder().decode(masterSaltB64.trim());
-            if (salt.length < 16) {
-                throw new IllegalStateException("FIELD_CRYPTO_MASTER_SALT_B64 must decode to at least 32 random bytes");
+            if (salt.length < minimumBytes) {
+                String requirement = newSalt
+                        ? "New FIELD_CRYPTO_MASTER_SALT_B64 must decode to at least 32 random bytes"
+                        : "FIELD_CRYPTO_MASTER_SALT_B64 must decode to at least 16 bytes; use at least 32 random bytes for a new salt";
+                throw new IllegalStateException(requirement);
             }
             return salt;
         } catch (IllegalArgumentException ex) {
