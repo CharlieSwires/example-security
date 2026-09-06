@@ -10,16 +10,12 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class LoginAttemptService {
 
-    private final Map<String, AttemptState> inMemoryAttempts = new ConcurrentHashMap<>();
     private final LoginAttemptRepository repository;
-    private final boolean persistent;
     private final int maxUserIpFailures;
     private final int maxIpFailures;
     private final Duration failureWindow;
@@ -29,19 +25,17 @@ public class LoginAttemptService {
     @Autowired
     public LoginAttemptService(
             LoginAttemptRepository repository,
-            @Value("${app.security.login.persistent:true}") boolean persistent,
             @Value("${app.security.login.max-user-ip-failures:5}") int maxUserIpFailures,
             @Value("${app.security.login.max-ip-failures:25}") int maxIpFailures,
             @Value("${app.security.login.failure-window-minutes:15}") long failureWindowMinutes,
             @Value("${app.security.login.lockout-minutes:15}") long lockoutMinutes
     ) {
-        this(repository, persistent, maxUserIpFailures, maxIpFailures,
+        this(repository, maxUserIpFailures, maxIpFailures,
                 Duration.ofMinutes(failureWindowMinutes), Duration.ofMinutes(lockoutMinutes), Clock.systemUTC());
     }
 
     LoginAttemptService(
             LoginAttemptRepository repository,
-            boolean persistent,
             int maxUserIpFailures,
             int maxIpFailures,
             Duration failureWindow,
@@ -49,7 +43,6 @@ public class LoginAttemptService {
             Clock clock
     ) {
         this.repository = repository;
-        this.persistent = persistent;
         this.maxUserIpFailures = maxUserIpFailures;
         this.maxIpFailures = maxIpFailures;
         this.failureWindow = failureWindow;
@@ -74,12 +67,7 @@ public class LoginAttemptService {
     }
 
     public void recordSuccessfulLogin(String username, String clientIp) {
-        String userIpKey = userIpKey(username, clientIp);
-        if (persistent) {
-            repository.deleteById(userIpKey);
-        } else {
-            inMemoryAttempts.remove(userIpKey);
-        }
+        repository.deleteById(userIpKey(username, clientIp));
     }
 
     private Optional<Duration> retryAfterForKey(String key, Instant now) {
@@ -96,57 +84,41 @@ public class LoginAttemptService {
     }
 
     private void recordFailure(String key, int maxFailures, Instant now) {
-        if (persistent) {
-            LoginAttempt existing = repository.findById(key).orElse(null);
-            LoginAttempt next = new LoginAttempt();
-            next.setKey(key);
+        LoginAttempt existing = repository.findById(key).orElse(null);
+        LoginAttempt next = new LoginAttempt();
+        next.setKey(key);
 
-            if (existing == null || existing.getFirstFailureAt() == null || existing.getFirstFailureAt().plus(failureWindow).isBefore(now)) {
-                next.setFailedAttempts(1);
-                next.setFirstFailureAt(now);
-            } else {
-                int failures = existing.getFailedAttempts() + 1;
-                next.setFailedAttempts(failures);
-                next.setFirstFailureAt(existing.getFirstFailureAt());
-                next.setLockedUntil(failures >= maxFailures ? now.plus(lockoutDuration) : existing.getLockedUntil());
-            }
-
-            Instant expiryBase = next.getLockedUntil() != null ? next.getLockedUntil() : next.getFirstFailureAt().plus(failureWindow);
-            next.setExpiresAt(expiryBase.plus(Duration.ofMinutes(5)));
-            repository.save(next);
-            return;
+        if (existing == null || existing.getFirstFailureAt() == null
+                || existing.getFirstFailureAt().plus(failureWindow).isBefore(now)) {
+            next.setFailedAttempts(1);
+            next.setFirstFailureAt(now);
+            if (maxFailures == 1) next.setLockedUntil(now.plus(lockoutDuration));
+        } else {
+            int failures = existing.getFailedAttempts() + 1;
+            next.setFailedAttempts(failures);
+            next.setFirstFailureAt(existing.getFirstFailureAt());
+            next.setLockedUntil(failures >= maxFailures ? now.plus(lockoutDuration) : existing.getLockedUntil());
         }
 
-        inMemoryAttempts.compute(key, (ignored, existing) -> {
-            if (existing == null || existing.firstFailureAt.plus(failureWindow).isBefore(now)) {
-                return new AttemptState(1, now, null);
-            }
-            int failures = existing.failedAttempts + 1;
-            Instant lockedUntil = failures >= maxFailures ? now.plus(lockoutDuration) : existing.lockedUntil;
-            return new AttemptState(failures, existing.firstFailureAt, lockedUntil);
-        });
+        Instant expiryBase = next.getLockedUntil() != null
+                ? next.getLockedUntil()
+                : next.getFirstFailureAt().plus(failureWindow);
+        next.setExpiresAt(expiryBase.plus(Duration.ofMinutes(5)));
+        repository.save(next);
     }
 
     private AttemptState readState(String key, Instant now) {
-        if (persistent) {
-            LoginAttempt attempt = repository.findById(key).orElse(null);
-            if (attempt == null) return null;
-            if (attempt.getFirstFailureAt() == null || attempt.getFirstFailureAt().plus(failureWindow).isBefore(now)) {
-                repository.deleteById(key);
-                return null;
-            }
-            return new AttemptState(attempt.getFailedAttempts(), attempt.getFirstFailureAt(), attempt.getLockedUntil());
-        }
-        AttemptState state = inMemoryAttempts.get(key);
-        if (state != null && state.firstFailureAt.plus(failureWindow).isBefore(now)) {
-            inMemoryAttempts.remove(key);
+        LoginAttempt attempt = repository.findById(key).orElse(null);
+        if (attempt == null) return null;
+        if (attempt.getFirstFailureAt() == null || attempt.getFirstFailureAt().plus(failureWindow).isBefore(now)) {
+            repository.deleteById(key);
             return null;
         }
-        return state;
+        return new AttemptState(attempt.getFailedAttempts(), attempt.getFirstFailureAt(), attempt.getLockedUntil());
     }
 
     private void removeState(String key) {
-        if (persistent) repository.deleteById(key); else inMemoryAttempts.remove(key);
+        repository.deleteById(key);
     }
 
     private String userIpKey(String username, String clientIp) {

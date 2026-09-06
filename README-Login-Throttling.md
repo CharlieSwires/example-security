@@ -1,6 +1,7 @@
 # Login throttling / brute-force protection
 
-This version adds in-memory login throttling to slow brute-force attacks.
+Login throttling is stored in MongoDB so every backend replica shares the same
+brute-force counters.
 
 ## Behaviour
 
@@ -44,9 +45,9 @@ backend/env.list.example
 
 ## Important production note
 
-This implementation is intentionally dependency-free and stores counters in memory. It is useful for a single-node demo or small private deployment.
-
-For production with more than one backend instance, use a shared store such as Redis, Bucket4j with a distributed backend, Spring Cloud Gateway rate limiting, or an API gateway/WAF. Otherwise, each container has its own counters and attackers can bypass throttling by hitting a different instance.
+The MongoDB repository is always used; there is no configuration switch or
+in-memory fallback. This prevents attackers bypassing throttling by alternating
+between backend replicas.
 
 
 ## Constructor injection fix

@@ -2,6 +2,7 @@ package com.example.security.security;
 
 import com.example.security.model.LoginAttempt;
 import com.example.security.repository.LoginAttemptRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -13,7 +14,6 @@ import java.time.Instant;
 import java.util.HexFormat;
 import java.util.Locale;
 import java.util.Optional;
-import org.springframework.beans.factory.annotation.Autowired;
 
 /** MongoDB-backed abuse protection for the public forgot-password endpoint. */
 @Service

@@ -16,8 +16,10 @@ services:
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-https://localhost:5173}
       BACKEND_BASE_URL: ${BACKEND_BASE_URL:-https://localhost:8080/ExampleSecurity}
     depends_on:
-      - mongo
-      - mailpit
+      mongo:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
     networks:
       - app
       - data
@@ -58,6 +60,12 @@ services:
       - ./mongo-init:/docker-entrypoint-initdb.d:ro
     networks:
       - data
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --host localhost --username \"$${MONGO_INITDB_ROOT_USERNAME}\" --password \"$${MONGO_INITDB_ROOT_PASSWORD}\" --authenticationDatabase admin --eval \"db.adminCommand('ping').ok\" | grep 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
 
   mailpit:
     image: axllent/mailpit:latest

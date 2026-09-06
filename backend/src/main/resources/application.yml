@@ -70,7 +70,6 @@ app:
     audit:
       persist: ${SECURITY_AUDIT_PERSIST:true}
     login:
-      persistent: ${LOGIN_THROTTLE_PERSISTENT:true}
       max-user-ip-failures: ${LOGIN_MAX_USER_IP_FAILURES:5}
       max-ip-failures: ${LOGIN_MAX_IP_FAILURES:25}
       failure-window-minutes: ${LOGIN_FAILURE_WINDOW_MINUTES:15}

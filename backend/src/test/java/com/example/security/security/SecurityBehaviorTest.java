@@ -43,7 +43,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties = {
         "spring.data.mongodb.uri=mongodb://localhost:27017/test",
         "app.security.audit.persist=false",
-        "app.security.login.persistent=false",
         "app.security.debug-request-logging=false",
         "app.cors.allowed-origins=https://localhost:5173",
         "app.crypto.passphrase=test-only-field-crypto-passphrase",

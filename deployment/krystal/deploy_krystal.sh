@@ -159,7 +159,6 @@ create_environment_template() {
         printf 'PASSWORD_RESET_MAX_IP_REQUESTS=20\n'
         printf 'PASSWORD_RESET_WINDOW_MINUTES=60\n'
         printf 'PASSWORD_RESET_LOCKOUT_MINUTES=60\n'
-        printf 'LOGIN_THROTTLE_PERSISTENT=true\n'
         printf 'SECURITY_AUDIT_PERSIST=true\n'
         printf 'SECURITY_DEBUG_REQUEST_LOGGING=false\n'
         printf 'MAX_REQUEST_BYTES=262144\n'
@@ -199,8 +198,6 @@ validate_environment() {
         [[ "$value" != *CHANGE_ME* ]] || die "Replace $key in $ENV_FILE before deployment."
     done
 
-    [[ "$(environment_value LOGIN_THROTTLE_PERSISTENT)" == "true" ]] \
-        || die "LOGIN_THROTTLE_PERSISTENT must be true."
     [[ "$(environment_value SECURITY_AUDIT_PERSIST)" == "true" ]] \
         || die "SECURITY_AUDIT_PERSIST must be true."
 }
@@ -374,11 +371,13 @@ http {
     resolver 127.0.0.11 valid=10s ipv6=off;
 
     upstream frontend_pool {
-        server frontend:80;
+        zone frontend_pool 64k;
+        server frontend:80 resolve;
     }
 
     upstream backend_pool {
-        server backend:8080;
+        zone backend_pool 64k;
+        server backend:8080 resolve;
     }
 
     server {
@@ -457,7 +456,6 @@ $MONGO_LOOPBACK_PORTS
       CORS_ALLOWED_ORIGINS: "https://$DOMAIN"
       FRONTEND_BASE_URL: "https://$DOMAIN"
       BACKEND_BASE_URL: "https://$DOMAIN/ExampleSecurity"
-      LOGIN_THROTTLE_PERSISTENT: "true"
       SECURITY_AUDIT_PERSIST: "true"
       SECURITY_DEBUG_REQUEST_LOGGING: "false"
     depends_on:

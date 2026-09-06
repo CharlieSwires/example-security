@@ -18,7 +18,6 @@ This copy-over ZIP adds practical production-hardening without moving to OAuth2.
 
 ```env
 SECURITY_AUDIT_PERSIST=true
-LOGIN_THROTTLE_PERSISTENT=true
 SESSION_TIMEOUT=30m
 ```
 
@@ -48,4 +47,5 @@ This version updates `LoginAttemptServiceTest` for the hardened constructor sign
 LoginAttemptRepository, persistent flag, user/IP limit, IP limit, failure window, lockout duration, clock
 ```
 
-The tests use `persistent=false` and a Mockito mock repository so they still exercise the in-memory throttling path.
+The tests use a Mockito-backed repository while exercising the same persistent
+throttling path used in production.
