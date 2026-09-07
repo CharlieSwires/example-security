@@ -237,7 +237,7 @@ function LoginScreen({ onLogin, onForgotPassword }) {
   }
 
   function finishLogin(auth) {
-    onLogin({ username: auth.username, roles: normaliseRoles(auth.roles ?? []) });
+    onLogin({ username: auth.username, roles: normaliseRoles(auth.roles ?? []), officeId: auth.officeId ?? '' });
   }
 
   function restartLogin() {
@@ -515,6 +515,18 @@ function Dashboard({ session, onLogout }) {
                 ))}
               </select>
               <div className="form-text">When SUPER opens Office or Office Admin tabs, this selected office is passed to the backend.</div>
+            </div>
+          )}
+          {!isSuper && (
+            <div className="mt-3 p-3 bg-white rounded-3 border">
+              <label className="form-label fw-semibold">Office</label>
+              <input
+                className="form-control"
+                value={session.officeId || 'Global / no office assigned'}
+                readOnly
+                aria-label="Associated office (read-only)"
+              />
+              <div className="form-text">Your associated office is read-only.</div>
             </div>
           )}
           {message && <div className="alert alert-success mt-3 mb-0">{message}</div>}
@@ -1981,7 +1993,7 @@ function App() {
     if (!session && route.name === 'main') {
       apiFetch('/api/me')
         .then(user => {
-          const nextSession = { username: user.username, roles: normaliseRoles(user.roles ?? []) };
+          const nextSession = { username: user.username, roles: normaliseRoles(user.roles ?? []), officeId: user.officeId ?? '' };
           sessionStorage.setItem('example-security-user', JSON.stringify(nextSession));
           setSession(nextSession);
         })

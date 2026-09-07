@@ -5,13 +5,14 @@ import java.util.Set;
 public record LoginResponse(
         boolean mfaRequired,
         String username,
-        Set<String> roles
+        Set<String> roles,
+        String officeId
 ) {
     public static LoginResponse mfaRequired(String username) {
-        return new LoginResponse(true, username, Set.of());
+        return new LoginResponse(true, username, Set.of(), null);
     }
 
-    public static LoginResponse authenticated(String username, Set<String> roles) {
-        return new LoginResponse(false, username, roles);
+    public static LoginResponse authenticated(String username, Set<String> roles, String officeId) {
+        return new LoginResponse(false, username, roles, officeId);
     }
 }

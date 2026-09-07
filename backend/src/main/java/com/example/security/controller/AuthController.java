@@ -189,7 +189,10 @@ public class AuthController {
                 .map(authority -> authority.getAuthority().replace("ROLE_", ""))
                 .collect(Collectors.toSet());
 
-        return new AuthResponse(authentication.getName(), roles);
+        String officeId = userService.findByUsername(authentication.getName())
+                .map(user -> user.getOfficeId())
+                .orElse(null);
+        return new AuthResponse(authentication.getName(), roles, officeId);
     }
 
     private LoginResponse completeAuthentication(
@@ -215,7 +218,10 @@ public class AuthController {
                 .map(authority -> authority.getAuthority().replace("ROLE_", ""))
                 .collect(Collectors.toSet());
 
-        return LoginResponse.authenticated(authentication.getName(), roles);
+        String officeId = userService.findByUsername(authentication.getName())
+                .map(user -> user.getOfficeId())
+                .orElse(null);
+        return LoginResponse.authenticated(authentication.getName(), roles, officeId);
     }
 
     private ResponseStatusException mfaChallengeExpired() {
