@@ -1,0 +1,15 @@
+#cloud-config
+hostname: ${hostname}
+package_update: true
+package_upgrade: true
+ssh_authorized_keys:
+  - ${ssh_public_key}
+packages:
+  - ca-certificates
+  - curl
+  - git
+runcmd:
+  - install -d -m 0755 /opt/example-security /etc/example-security
+  - curl -fsSL https://get.docker.com | sh
+  - systemctl enable --now docker
+  - echo 'Bootstrap complete. Deploy with infrastructure/scripts/deploy.sh after securely installing /etc/example-security/backend.env.'

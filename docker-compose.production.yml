@@ -1,0 +1,52 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ${EXAMPLE_SECURITY_ENV_FILE:-/etc/example-security/backend.env}
+    environment:
+      SSL_ENABLED: "false"
+      SESSION_COOKIE_SECURE: "true"
+      SESSION_COOKIE_SAME_SITE: "lax"
+      SESSION_COLLECTION_NAME: ${SESSION_COLLECTION_NAME:-spring_sessions}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://example.invalid}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-https://example.invalid}
+      BACKEND_BASE_URL: ${BACKEND_BASE_URL:-https://example.invalid/ExampleSecurity}
+      TRUSTED_PROXY_REGEX: ${TRUSTED_PROXY_REGEX:-172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|127\.\d{1,3}\.\d{1,3}\.\d{1,3}|::1}
+    expose:
+      - "8080"
+    networks:
+      - app
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ExampleSecurity/actuator/health/readiness | grep -q '\"status\":\"UP\"'"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 45s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.production
+      args:
+        VITE_API_BASE: ${VITE_API_BASE:-/ExampleSecurity}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    networks:
+      - app
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/health | grep -q '\"status\":\"UP\"'"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 10s
+
+networks:
+  app:
+    driver: bridge

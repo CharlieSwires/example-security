@@ -20,3 +20,12 @@ frontend/certs/
 .idea/
 .vscode/
 .DS_Store
+
+*.tfstate
+*.tfstate.*
+*.tfplan
+.terraform/
+provider-schema.json
+.env
+.env.*
+!*.env.example
