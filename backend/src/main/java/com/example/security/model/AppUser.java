@@ -49,6 +49,11 @@ public class AppUser {
     private List<String> recoveryCodeHashes = new ArrayList<>();
     private Instant mfaEnrolledAt;
 
+    /** Immutable OpenID Connect subject for a deliberately linked Google account. */
+    @Indexed(unique = true, sparse = true)
+    private String googleSubject;
+    private Instant googleLinkedAt;
+
     public String getId() { return id; }
     public String getUsername() { return username; }
     public String getEmail() { return email; }
@@ -70,6 +75,8 @@ public class AppUser {
     public String getTotpSecretEncrypted() { return totpSecretEncrypted; }
     public List<String> getRecoveryCodeHashes() { return recoveryCodeHashes; }
     public Instant getMfaEnrolledAt() { return mfaEnrolledAt; }
+    public String getGoogleSubject() { return googleSubject; }
+    public Instant getGoogleLinkedAt() { return googleLinkedAt; }
 
     public void setId(String id) { this.id = id; }
     public void setUsername(String username) { this.username = username; }
@@ -92,4 +99,6 @@ public class AppUser {
     public void setTotpSecretEncrypted(String totpSecretEncrypted) { this.totpSecretEncrypted = totpSecretEncrypted; }
     public void setRecoveryCodeHashes(List<String> recoveryCodeHashes) { this.recoveryCodeHashes = recoveryCodeHashes == null ? new ArrayList<>() : recoveryCodeHashes; }
     public void setMfaEnrolledAt(Instant mfaEnrolledAt) { this.mfaEnrolledAt = mfaEnrolledAt; }
+    public void setGoogleSubject(String googleSubject) { this.googleSubject = googleSubject == null || googleSubject.isBlank() ? null : googleSubject; }
+    public void setGoogleLinkedAt(Instant googleLinkedAt) { this.googleLinkedAt = googleLinkedAt; }
 }

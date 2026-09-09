@@ -170,7 +170,7 @@ function routeFromLocation() {
   if (path === '/forgot-password') return { name: 'forgot' };
   if (path === '/reset-password') return { name: 'reset', token: params.get('token') ?? '' };
 
-  return { name: 'main' };
+  return { name: 'main', google: params.get('google') ?? '' };
 }
 
 function roleBadge(role) {
@@ -186,13 +186,30 @@ function roleBadge(role) {
   return <span className={`badge ${classes[displayRole] ?? 'text-bg-secondary'} me-1`} key={displayRole}>{displayRole}</span>;
 }
 
-function LoginScreen({ onLogin, onForgotPassword }) {
+function LoginScreen({ onLogin, onForgotPassword, googleResult = '' }) {
   const [username, setUsername] = useState('super');
   const [password, setPassword] = useState('');
   const [mfaCode, setMfaCode] = useState('');
-  const [mfaRequired, setMfaRequired] = useState(false);
-  const [error, setError] = useState('');
+  const [mfaRequired, setMfaRequired] = useState(googleResult === 'mfa');
+  const [googleAvailable, setGoogleAvailable] = useState(false);
+  const [error, setError] = useState(() => {
+    if (googleResult === 'not_linked') return 'That Google account is not linked to an application user. Sign in with your password, verify your email and link Google from Security settings.';
+    if (googleResult === 'link_rejected') return 'Google linking was rejected. The Google email must match your verified application email and must not be linked elsewhere.';
+    if (googleResult === 'provider_rejected') return 'Google sign-in was cancelled or could not be completed.';
+    if (googleResult === 'invalid_google_identity') return 'Google did not return a valid verified identity.';
+    return '';
+  });
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    apiFetch('/api/oauth/google/config')
+      .then(config => setGoogleAvailable(Boolean(config.available)))
+      .catch(() => setGoogleAvailable(false));
+  }, []);
+
+  function googleLogin() {
+    window.location.assign(`${API_BASE}/api/oauth/google/login`);
+  }
 
   async function login(event) {
     event.preventDefault();
@@ -244,6 +261,7 @@ function LoginScreen({ onLogin, onForgotPassword }) {
     setMfaRequired(false);
     setMfaCode('');
     setError('');
+    window.history.replaceState({}, '', window.location.pathname);
   }
 
   return (
@@ -279,6 +297,19 @@ function LoginScreen({ onLogin, onForgotPassword }) {
               <button className="btn btn-primary btn-lg w-100" disabled={busy || !mfaCode.trim()}>{busy ? 'Verifying...' : 'Verify MFA'}</button>
               <button type="button" className="btn btn-link w-100 mt-2" onClick={restartLogin}>Start login again</button>
             </form>
+          )}
+
+          {!mfaRequired && googleAvailable && (
+            <>
+              <div className="d-flex align-items-center gap-3 my-3" aria-hidden="true">
+                <div className="border-top flex-grow-1" />
+                <span className="small text-secondary">or</span>
+                <div className="border-top flex-grow-1" />
+              </div>
+              <button type="button" className="btn btn-outline-dark btn-lg w-100" disabled={busy} onClick={googleLogin}>
+                Sign in with Google
+              </button>
+            </>
           )}
 
           {!mfaRequired && <button className="btn btn-link px-0 mt-3" onClick={onForgotPassword}>Forgot password?</button>}
@@ -567,13 +598,47 @@ function MfaPanel() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [google, setGoogle] = useState({ available: false, linked: false, email: null, linkedAt: null });
 
   async function loadStatus() {
     try {
-      const status = await apiFetch('/api/mfa/status');
+      const [status, googleStatus] = await Promise.all([
+        apiFetch('/api/mfa/status'),
+        apiFetch('/api/oauth/google/status')
+      ]);
       setEnabled(Boolean(status.enabled));
+      setGoogle(googleStatus);
     } catch (err) {
       setError(err.message || 'Could not read MFA status.');
+    }
+  }
+
+  async function linkGoogle() {
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      const result = await apiFetch('/api/oauth/google/link', { method: 'POST' });
+      window.location.assign(`${API_BASE}${result.authorizationPath}`);
+    } catch (err) {
+      setError(err.message || 'Could not start Google account linking.');
+      setBusy(false);
+    }
+  }
+
+  async function unlinkGoogle() {
+    if (!window.confirm('Unlink this Google account? Password login will continue to work.')) return;
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      await apiFetch('/api/oauth/google/link', { method: 'DELETE' });
+      setGoogle(current => ({ ...current, linked: false, linkedAt: null }));
+      setMessage('Google account unlinked.');
+    } catch (err) {
+      setError(err.message || 'Could not unlink Google.');
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -682,6 +747,24 @@ function MfaPanel() {
               {recoveryCodes.map(item => <div className="col-md-6" key={item}>{item}</div>)}
             </div>
             <div className="small mt-2">Each recovery code works once. They are stored only as SHA-256 hashes.</div>
+          </div>
+        )}
+
+        {google.available && (
+          <div className="mt-4 pt-4 border-top">
+            <div className="d-flex flex-wrap justify-content-between align-items-center gap-3">
+              <div>
+                <h2 className="h5 fw-bold mb-1">Google sign-in</h2>
+                <div className="text-secondary">
+                  Status: <span className={`badge ${google.linked ? 'text-bg-success' : 'text-bg-secondary'}`}>{google.linked ? 'Linked' : 'Not linked'}</span>
+                </div>
+                {!google.linked && google.email && <div className="small text-secondary mt-1">Google must use your verified address: {google.email}</div>}
+              </div>
+              {google.linked
+                ? <button className="btn btn-outline-danger" disabled={busy} onClick={unlinkGoogle}>Unlink Google</button>
+                : <button className="btn btn-outline-dark" disabled={busy || !google.email} onClick={linkGoogle}>Link Google account</button>}
+            </div>
+            <div className="small text-secondary mt-2">Google identifies your existing user; application roles and office access remain controlled here. Application MFA is still required when enabled.</div>
           </div>
         )}
       </div>
@@ -2009,6 +2092,7 @@ function App() {
   }
 
   function login(nextSession) {
+    window.history.replaceState({}, '', window.location.pathname);
     sessionStorage.setItem('example-security-user', JSON.stringify(nextSession));
     sessionStorage.removeItem('example-security-session');
     setSession(nextSession);
@@ -2025,7 +2109,7 @@ function App() {
 
   return session
     ? <Dashboard session={session} onLogout={logout} />
-    : <LoginScreen onLogin={login} onForgotPassword={() => navigate('/forgot-password')} />;
+    : <LoginScreen onLogin={login} onForgotPassword={() => navigate('/forgot-password')} googleResult={route.google} />;
 }
 
 createRoot(document.getElementById('root')).render(<App />);

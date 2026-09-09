@@ -37,8 +37,13 @@ public class SecurityConfig {
     @Value("${app.cors.allowed-origins}")
     private String allowedOrigins;
 
+    @Value("${app.oauth.google.enabled:false}")
+    private boolean googleOAuthEnabled;
+
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http,
+                                            GoogleOAuthSuccessHandler googleSuccessHandler,
+                                            GoogleOAuthFailureHandler googleFailureHandler) throws Exception {
         CsrfTokenRequestAttributeHandler csrfRequestHandler = new CsrfTokenRequestAttributeHandler();
         csrfRequestHandler.setCsrfRequestAttributeName(null);
 
@@ -101,6 +106,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/csrf").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/oauth/google/config", "/api/oauth/google/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/login/mfa").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/email/verify").permitAll()
@@ -123,6 +129,14 @@ public class SecurityConfig {
                         .requestMatchers("/user").hasAnyRole("PATIENT", "OFFICE", "OFFICE_ADMIN", "HQ", "SUPER")
                         .anyRequest().authenticated()
                 );
+
+        if (googleOAuthEnabled) {
+            http.oauth2Login(oauth -> oauth
+                    .successHandler(googleSuccessHandler)
+                    .failureHandler(googleFailureHandler)
+                    .authorizedClientRepository(new NoStoreAuthorizedClientRepository())
+            );
+        }
 
         return http.build();
     }

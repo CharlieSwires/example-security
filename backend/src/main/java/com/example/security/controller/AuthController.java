@@ -5,6 +5,7 @@ import com.example.security.dto.AuthRequest;
 import com.example.security.dto.LoginResponse;
 import com.example.security.dto.MfaVerifyRequest;
 import com.example.security.security.LoginAttemptService;
+import com.example.security.security.LoginCompletionService;
 import com.example.security.security.SecurityAuditService;
 import com.example.security.service.MfaService;
 import com.example.security.service.UserService;
@@ -18,19 +19,14 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
-import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
-import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -40,15 +36,8 @@ import java.util.stream.Collectors;
 @RequestMapping("/api")
 public class AuthController {
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);
-    private static final String MFA_USERNAME = "MFA_LOGIN_USERNAME";
-    private static final String MFA_CREATED = "MFA_LOGIN_CREATED";
-    private static final String MFA_ATTEMPTS = "MFA_LOGIN_ATTEMPTS";
-    private static final long MFA_CHALLENGE_SECONDS = 5 * 60;
-    private static final int MFA_MAX_ATTEMPTS = 5;
-
     private final AuthenticationManager authenticationManager;
-    private final SecurityContextRepository securityContextRepository;
-    private final SessionAuthenticationStrategy sessionAuthenticationStrategy;
+    private final LoginCompletionService loginCompletionService;
     private final LoginAttemptService loginAttemptService;
     private final SecurityAuditService auditService;
     private final MfaService mfaService;
@@ -57,8 +46,7 @@ public class AuthController {
 
     public AuthController(
             AuthenticationManager authenticationManager,
-            SecurityContextRepository securityContextRepository,
-            SessionAuthenticationStrategy sessionAuthenticationStrategy,
+            LoginCompletionService loginCompletionService,
             LoginAttemptService loginAttemptService,
             SecurityAuditService auditService,
             MfaService mfaService,
@@ -66,8 +54,7 @@ public class AuthController {
             UserService userService
     ) {
         this.authenticationManager = authenticationManager;
-        this.securityContextRepository = securityContextRepository;
-        this.sessionAuthenticationStrategy = sessionAuthenticationStrategy;
+        this.loginCompletionService = loginCompletionService;
         this.loginAttemptService = loginAttemptService;
         this.auditService = auditService;
         this.mfaService = mfaService;
@@ -122,17 +109,12 @@ public class AuthController {
         }
 
         if (mfaService.isEnabled(authentication.getName())) {
-            HttpSession session = httpRequest.getSession(true);
-            session.setAttribute(MFA_USERNAME, authentication.getName());
-            session.setAttribute(MFA_CREATED, Instant.now().getEpochSecond());
-            session.setAttribute(MFA_ATTEMPTS, 0);
-            auditService.record("MFA_CHALLENGE", authentication.getName(), authentication.getName(), true,
-                    "password_verified", httpRequest);
-            return LoginResponse.mfaRequired(authentication.getName());
+            return loginCompletionService.beginMfaChallenge(authentication, httpRequest, httpResponse,
+                    "password_verified");
         }
 
         loginAttemptService.recordSuccessfulLogin(username, clientIp);
-        return completeAuthentication(authentication, httpRequest, httpResponse, "password_only");
+        return loginCompletionService.complete(authentication, httpRequest, httpResponse, "password_only");
     }
 
     @PostMapping("/login/mfa")
@@ -144,31 +126,31 @@ public class AuthController {
         HttpSession session = httpRequest.getSession(false);
         if (session == null) throw mfaChallengeExpired();
 
-        Object usernameValue = session.getAttribute(MFA_USERNAME);
-        Object createdValue = session.getAttribute(MFA_CREATED);
-        Object attemptsValue = session.getAttribute(MFA_ATTEMPTS);
+        Object usernameValue = session.getAttribute(LoginCompletionService.MFA_USERNAME);
+        Object createdValue = session.getAttribute(LoginCompletionService.MFA_CREATED);
+        Object attemptsValue = session.getAttribute(LoginCompletionService.MFA_ATTEMPTS);
         if (!(usernameValue instanceof String username) || !(createdValue instanceof Long created)) {
             clearMfaChallenge(session);
             throw mfaChallengeExpired();
         }
 
-        if (Instant.now().getEpochSecond() - created > MFA_CHALLENGE_SECONDS) {
+        if (java.time.Instant.now().getEpochSecond() - created > LoginCompletionService.MFA_CHALLENGE_SECONDS) {
             clearMfaChallenge(session);
             throw mfaChallengeExpired();
         }
 
         int attempts = attemptsValue instanceof Integer value ? value : 0;
-        if (attempts >= MFA_MAX_ATTEMPTS) {
+        if (attempts >= LoginCompletionService.MFA_MAX_ATTEMPTS) {
             clearMfaChallenge(session);
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Too many MFA attempts. Sign in again.");
         }
 
         if (!mfaService.verifyForLogin(username, request.code())) {
             attempts++;
-            session.setAttribute(MFA_ATTEMPTS, attempts);
+            session.setAttribute(LoginCompletionService.MFA_ATTEMPTS, attempts);
             auditService.record("MFA_FAILURE", username, username, false, "invalid_code", httpRequest,
                     Map.of("attempt", Integer.toString(attempts)));
-            if (attempts >= MFA_MAX_ATTEMPTS) clearMfaChallenge(session);
+            if (attempts >= LoginCompletionService.MFA_MAX_ATTEMPTS) clearMfaChallenge(session);
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid Authy or recovery code");
         }
 
@@ -179,7 +161,7 @@ public class AuthController {
         clearMfaChallenge(session);
         loginAttemptService.recordSuccessfulLogin(username, auditService.clientIp(httpRequest));
         auditService.record("MFA_SUCCESS", username, username, true, "totp_or_recovery_verified", httpRequest);
-        return completeAuthentication(authentication, httpRequest, httpResponse, "mfa_verified");
+        return loginCompletionService.complete(authentication, httpRequest, httpResponse, "mfa_verified");
     }
 
     @GetMapping("/me")
@@ -195,43 +177,12 @@ public class AuthController {
         return new AuthResponse(authentication.getName(), roles, officeId);
     }
 
-    private LoginResponse completeAuthentication(
-            Authentication authentication,
-            HttpServletRequest httpRequest,
-            HttpServletResponse httpResponse,
-            String method
-    ) {
-        sessionAuthenticationStrategy.onAuthentication(authentication, httpRequest, httpResponse);
-
-        SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
-        securityContext.setAuthentication(authentication);
-        SecurityContextHolder.setContext(securityContext);
-
-        HttpSession session = httpRequest.getSession(true);
-        securityContextRepository.saveContext(securityContext, httpRequest, httpResponse);
-
-        auditService.record("LOGIN_SUCCESS", authentication.getName(), authentication.getName(), true, method, httpRequest,
-                Map.of("session", session == null ? "none" : "created"));
-
-        Set<String> roles = authentication.getAuthorities()
-                .stream()
-                .map(authority -> authority.getAuthority().replace("ROLE_", ""))
-                .collect(Collectors.toSet());
-
-        String officeId = userService.findByUsername(authentication.getName())
-                .map(user -> user.getOfficeId())
-                .orElse(null);
-        return LoginResponse.authenticated(authentication.getName(), roles, officeId);
-    }
-
     private ResponseStatusException mfaChallengeExpired() {
         return new ResponseStatusException(HttpStatus.UNAUTHORIZED, "MFA challenge expired. Sign in again.");
     }
 
     private void clearMfaChallenge(HttpSession session) {
-        session.removeAttribute(MFA_USERNAME);
-        session.removeAttribute(MFA_CREATED);
-        session.removeAttribute(MFA_ATTEMPTS);
+        loginCompletionService.clearMfaChallenge(session);
     }
 
     private void applyRetryAfter(HttpServletResponse response, Duration retryAfter) {
