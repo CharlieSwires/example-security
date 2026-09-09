@@ -2092,13 +2092,16 @@ function App() {
   }
 
   function login(nextSession) {
-    window.history.replaceState({}, '', window.location.pathname);
+    window.history.replaceState({}, '', '/');
+    setRoute({ name: 'main', google: '' });
     sessionStorage.setItem('example-security-user', JSON.stringify(nextSession));
     sessionStorage.removeItem('example-security-session');
     setSession(nextSession);
   }
 
   function logout() {
+    window.history.replaceState({}, '', '/');
+    setRoute({ name: 'main', google: '' });
     sessionStorage.removeItem('example-security-user');
     sessionStorage.removeItem('example-security-session');
     setSession(null);
