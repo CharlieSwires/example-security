@@ -267,3 +267,23 @@ See [README-Krystal-HA-Production-Deployment.md](README-Krystal-HA-Production-De
 ## Licence and suitability
 
 Add the intended licence before distributing the project. Secure production operation also depends on infrastructure, secrets management, monitoring, maintenance and organizational controls outside the source code.
+
+# Login Screens
+
+<img src="Screenshot 2026-09-09 213019.png" alt="Login screen initial with password and OAuth2" width="900">
+<img src="Screenshot 2026-09-09 213103.png" alt="Login screen Authy MFA" width="900">
+
+# Super Screen
+
+<img src="Screenshot 2026-09-09 213218.png" alt="Super screen top" width="900">
+<img src="Screenshot 2026-09-09 213302.png" alt="Super screen bottom" width="900">
+
+# HQ Screen
+
+<img src="Screenshot 2026-09-04 193027.png" alt="HQ Screen top" width="900">
+<img src="Screenshot 2026-09-04 193055.png" alt="HQ screen bottom" width="900">
+
+# Office Admin Screen
+
+<img src="Screenshot 2026-09-04 193159.png" alt="Office Admin screen top" width="900">
+<img src="Screenshot 2026-09-04 193221.png" alt="Office Admin screen bottom" width="900">
