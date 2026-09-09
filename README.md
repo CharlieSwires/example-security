@@ -1,555 +1,269 @@
-# ExampleSecurity
+# ExampleSecurity — Optician Hub
 
-> A Spring Boot + React security starter application showing the foundations of a production-style web app.
+ExampleSecurity is a Spring Boot and React reference application for an ophthalmic clinic network. It combines role-based patient and practice workflows with production-style authentication, encrypted clinical fields, shared server-side sessions, audit logging and deployment support.
 
-ExampleSecurity is a secure login and user-management starter project. It demonstrates how a modern web application can handle authentication, sessions, roles, password reset, email verification, CSRF protection, and admin user management.
-
-It is **not a finished business application**. It is a secure foundation that can be built on before adding real business features.
-
----
+It is a reference implementation, not a certified clinical product. A real deployment still requires clinical-safety assessment, privacy governance, penetration testing, monitoring and compliance work.
 
 ## At a glance
 
-```text
-| Area | What it uses |
+| Area | Implementation |
 |---|---|
-| Backend | Java 17, Spring Boot, Spring Security |
-| Frontend | React, Vite, Bootstrap 5 |
+| Backend | Java 17, Spring Boot 3.3, Spring Security |
+| Frontend | React, Vite, Bootstrap 5, Nginx |
 | Database | MongoDB or MongoDB Atlas |
-| Local email testing | Mailpit |
-| Authentication | Server-side Spring session |
-| Password storage | Salted PBKDF2-HMAC-SHA256, 600,000 iterations |
-| Browser session | `HttpOnly`, `Secure`, `SameSite` cookie |
-| Admin control | `SUPER` role |
-| Security extras | CSRF protection, login throttling, audit logging foundations |
-```
----
+| Sessions | Spring Session documents in MongoDB |
+| Passwords | Per-user salted PBKDF2-HMAC-SHA256, 600,000 iterations |
+| MFA | RFC 6238 TOTP for Authy and compatible apps, plus recovery codes |
+| Federated login | Optional Google OAuth 2.0/OpenID Connect for linked users |
+| Clinical encryption | AES-256-GCM with deterministic HMAC lookup fields |
+| Roles | `PATIENT`, `OFFICE`, `OFFICE_ADMIN`, `HQ`, `SUPER` |
+| Deployment | Local Docker Compose and two-node Krystal/Atlas layout |
 
-## What this app does
+## Application capabilities
 
-The application has two main parts:
+- Patients view their own appointments, clinician and prescription information read-only.
+- Office users work with appointments and clinical records for their assigned practice.
+- Office administrators manage permitted users and appointments within their practice.
+- HQ users manage offices and move patients or clinicians between practices.
+- SUPER users administer the system and select an office context.
+- Names, telephone numbers, prescriptions and clinical notes are encrypted at rest.
+- Current prescriptions and dated historical note prescriptions are retained separately.
+- Lists are paginated at 50 records per page.
+- Validation is enforced by the backend and reported safely by the frontend.
+- Security-sensitive activity can be recorded in the audit collection.
 
-```text
-- a **React frontend**, which users see in the browser
-- a **Spring Boot backend**, which checks passwords, manages sessions, protects endpoints, stores users, and 
-```
-sends emails
+## Role model
 
-Users can log in with a username and password. The backend checks the password, creates a server-side session, and gives the browser a secure `JSESSIONID` cookie.
-
-The browser does **not** store the password. JavaScript does **not** read the session cookie because it is `HttpOnly`.
-
----
-
-## User roles
-
-The app has three roles.
-
-```text
-| Role | Meaning |
+| Role | Scope |
 |---|---|
-| `USER` | Can access the user endpoint |
-| `DEVELOPER` | Can access the developer endpoint |
-| `SUPER` | Administrator role; can access everything |
-```
-The `SUPER` user can access the admin screen to manage users and roles.
+| `PATIENT` | Read-only access to the patient's own appointment documents |
+| `OFFICE` | Appointment and clinical workflows for the assigned office |
+| `OFFICE_ADMIN` | Office workflows plus permitted user administration |
+| `HQ` | Cross-office management and office-level transfers |
+| `SUPER` | Global administration and selectable office context |
 
----
+For `PATIENT`, `OFFICE`, `OFFICE_ADMIN` and `HQ`, the associated office is displayed read-only. `SUPER` retains the office selector. Roles and office assignments always come from the MongoDB `AppUser` record.
 
-## Main security design
+## Authentication
 
-This version uses a session-cookie and CSRF design:
+### Password and session login
 
-```text
-POST /api/login over HTTPS
-server verifies PBKDF2 password hash
-server creates server-side session
-browser receives HttpOnly Secure SameSite JSESSIONID cookie
-React calls the API using credentials: include
-CSRF protection is enabled
-password is never stored in browser JavaScript
-```
+Passwords are posted over HTTPS to the backend. Spring Security verifies the PBKDF2 hash and creates a server-side session. The browser receives a `JSESSIONID` cookie configured as `HttpOnly`, `Secure` in HTTPS environments and with an explicit `SameSite` policy.
 
-This is more production-like than storing credentials in the browser or using Basic Auth from the frontend.
+React never stores the password and cannot read the `HttpOnly` cookie. State-changing requests use CSRF protection. Login throttling limits repeated failures by account/IP and by IP.
 
-Technology stack
-Backend
+### Authenticator-app MFA
 
-```text
-Java 17
-Spring Boot 3.3.x
-Spring Security
-Spring Data MongoDB
-Java Mail / Spring Mail
-PBKDF2 password hashing
-Server-side sessions
-CSRF protection
-Login throttling
-Audit logging foundations
-```
+Users can enrol Authy or another RFC 6238-compatible authenticator. For an MFA-enabled user, successful password or Google authentication creates only a five-minute server-side challenge. The authenticated session is established only after a valid TOTP or unused recovery code is supplied.
 
-Frontend
+- Six-digit TOTP with 30-second periods and limited clock tolerance
+- Maximum five login verification attempts
+- Encrypted TOTP secret
+- One-use recovery codes stored only as hashes
 
+See [README-Authy-MFA.md](README-Authy-MFA.md).
 
-```text
-React
-Vite
-Bootstrap 5
-Nginx container for the built frontend
-HTTPS local frontend support
-```
-Database and mail
+### Google sign-in
 
-```text
-MongoDB or MongoDB Atlas
-Mailpit for local email testing
-Gmail SMTP or another SMTP provider for real email delivery
-```
-Endpoint access rules
-Endpoint	Access
+Google login is optional and disabled by default. It identifies an existing user; it never creates an application user or assigns a role.
 
-```text
-POST /ExampleSecurity/api/login	Public
-POST /ExampleSecurity/api/logout	Public/session logout
-GET /ExampleSecurity/api/csrf	Public CSRF token endpoint
-GET /ExampleSecurity/api/me	Logged-in users
-GET /ExampleSecurity/user	USER or SUPER
-GET /ExampleSecurity/developer	DEVELOPER or SUPER
-/ExampleSecurity/api/admin/**	SUPER only
-POST /ExampleSecurity/api/password/forgot	Public
-POST /ExampleSecurity/api/password/reset	Public reset-token flow
-GET /ExampleSecurity/api/email/verify	Public verification-token flow
+The user must first sign in normally, verify an application email and deliberately link a Google account using the same verified email. The application stores Google's immutable OpenID Connect `sub` identifier under a unique sparse index. Google access and refresh tokens are not retained. Application MFA is still required when enabled.
 
+See [README-Google-OAuth-Login.md](README-Google-OAuth-Login.md) for Google Cloud test-user, callback and deployment configuration.
 
-SUPER can access all protected areas.
-```
+## Security controls
 
-Current features:
+- Spring Security URL and method authorization
+- CSRF cookie/header flow
+- Shared MongoDB sessions for multiple backend instances
+- Session ID rotation after authentication
+- Login and password-reset throttling
+- Verified-email and password-reset flows
+- Request-size limits and security response headers
+- Trusted-proxy handling for forwarded scheme, address, host and port
+- Audit events without passwords, secrets, raw tokens or session IDs
+- No live endpoint for rotating master encryption material
+
+The separate `example-security-key-rotator` utility performs controlled offline key rotation while the application is prevented from writing affected data.
+
+## Encrypted data
+
+`FieldCryptoService` provides AES-256-GCM field encryption. The passphrase and master salt must be supplied externally and shared by every backend instance accessing the same data.
+
+Encrypted content includes patient names, telephone numbers, prescriptions, note subjects, note bodies and TOTP secrets. Dates required for sorting may remain clear. Deterministic HMAC values support equality lookup without searchable plaintext.
+
+Never change `FIELD_CRYPTO_PASSPHRASE` or `FIELD_CRYPTO_MASTER_SALT_B64` after storing data except through the documented rotation procedure.
+
+See [README-Encrypted-Clinical-Fields.md](README-Encrypted-Clinical-Fields.md).
+
+## Repository layout
 
 ```text
-Authentication
-Login with username and password
-Logout
-Server-side session creation
-HttpOnly session cookie
-Secure cookie support for HTTPS
-SameSite cookie configuration
-/api/me endpoint to check the logged-in user
-Password security
-Passwords are not stored directly
-Passwords are salted
-Passwords are hashed using PBKDF2
-Password comparison is done using hashes
-Password reset flow uses email links
-User and role management
+backend/                    Spring Boot API
+frontend/                   React/Vite frontend and Nginx configuration
+load-balancer/              Local TLS/load-balancer configuration
+mongo-init/                 Authenticated local MongoDB bootstrap
+infrastructure/             Production Terraform, cloud-init and scripts
+deployment/krystal/         Krystal deployment support
+docker-compose.yml          Local multi-container environment
+docker-compose.production.yml
 ```
 
-The SUPER admin screen can:
+## Local Docker setup
 
-```text
-create users
-delete users
-update roles
-update a user password
-manage USER, DEVELOPER, and SUPER roles
-```
-```text
-The app should prevent unsafe admin behaviour such as removing the final SUPER user if that hardening code is present in your current branch.
+Copy the environment example and replace its placeholders:
 
-Email verification
-
-A user email address is not trusted immediately.
-
-The app sends a verification link to the proposed email address. The email is only saved as verified after the user clicks the verification URL.
-
-Forgot password and reset password
-
-The login screen includes a forgot-password flow.
-
-The user enters their email address. If it matches a verified email address, the app sends a password-reset link. If it does not match, the app should respond generically and not reveal whether the email exists.
-
-CSRF protection
-
-The backend uses CSRF protection for authenticated state-changing requests.
-
-React fetches a CSRF token and sends it using the X-XSRF-TOKEN header where required.
-
-Login throttling
-
-The backend includes login throttling to slow brute-force password guessing.
-
-Security-hardening details, including transparent upgrade of legacy password hashes,
-offline passphrase/master-salt maintenance, TOTP-secret rotation, mandatory crypto
-secrets and trusted reverse-proxy handling, are documented in
-`README-Security-Hardening-Fixes.md`.
-
-The live React/Spring application does not accept encryption keys or provide a
-database-wide rotation endpoint. Use the separate `example-security-key-rotator`
-maintenance application only after taking a verified backup and stopping every
-backend instance.
-
-The follow-up validation, password-recovery throttling, session revocation,
-office-isolation, authenticated MongoDB and Nginx/CSP changes are documented in
-`README-Security-Hardening-Round-2.md`.
-
-Typical defaults:
-
-Rule	Default
-Same username + IP failures	5 failed attempts within 15 minutes
-Same IP failures	25 failed attempts within 15 minutes
-Lockout duration	15 minutes
-
-The exact values are configurable by environment variables.
-
-Audit logging
-
-The app includes foundations for security audit logging.
+```bash
+cp env.list.example env.list
 ```
 
-Useful events include:
+Keep `env.list` out of Git. Configure strong independent MongoDB and bootstrap passwords plus both field-encryption values. Generate a 32-byte master salt with:
 
-```text
-LOGIN_SUCCESS
-LOGIN_FAILURE
-LOGIN_THROTTLED
-LOGOUT
-PASSWORD_RESET_REQUESTED
-PASSWORD_RESET_COMPLETED
-EMAIL_VERIFICATION_REQUESTED
-EMAIL_VERIFIED
-USER_CREATED
-USER_DELETED
-USER_ROLES_CHANGED
-ACCESS_DENIED
-CSRF_DENIED
-```
-Do not log:
-
-```text
-passwords
-password hashes
-reset tokens
-verification tokens
-full cookies
-full session IDs
-SMTP passwords
-MongoDB credentials
-Local development URLs
+```bash
+openssl rand -base64 32
 ```
 
-With the HTTPS Docker setup:
+Generate the local certificates with the supplied script, then start the application:
 
-```text
-Service	URL
-Frontend	https://localhost:5173
-Backend	https://localhost:8080/ExampleSecurity
-Mailpit	http://localhost:8025
+```bash
+docker compose up --build --scale backend=2 --scale frontend=2
 ```
-The browser may warn about local self-signed certificates. That is expected for local development.
 
-Environment configuration
+| Service | Default local URL |
+|---|---|
+| Frontend | `https://localhost:5173` |
+| Backend | `https://localhost:8080/ExampleSecurity` |
+| Mailpit | `http://localhost:8025` |
 
-Create an env.list file for local Docker use.
+The browser may initially warn about a locally generated certificate.
 
-Do not commit env.list.
+## Important environment variables
 
-Example:
+### Database, URLs and bootstrap
 
-# MongoDB
-
-```text
-MONGODB_URI=mongodb://example_security_app:YOUR_URL_ENCODED_PASSWORD@mongo:27017/example_security?authSource=example_security
-```
-# Initial bootstrap SUPER account
-
-```text
+```properties
+MONGODB_URI=mongodb://example_security_app:REPLACE_ME@mongo:27017/example_security?authSource=example_security
 INITIAL_SUPER_USERNAME=super
-INITIAL_SUPER_PASSWORD=ChangeThisPassword123!
-```
-# HTTPS backend
-
-```text
-SSL_ENABLED=true
-SSL_KEYSTORE_PASSWORD=changeit
-SSL_KEY_ALIAS=examplesecurity
-```
-# Session cookie
-
-```text
-SESSION_COOKIE_SECURE=true
-SESSION_COOKIE_SAME_SITE=lax
-SESSION_TIMEOUT=30m
-```
-# CORS / URLs
-
-```text
+INITIAL_SUPER_PASSWORD=replace-with-a-long-random-password
 CORS_ALLOWED_ORIGINS=https://localhost:5173
 FRONTEND_BASE_URL=https://localhost:5173
 BACKEND_BASE_URL=https://localhost:8080/ExampleSecurity
+VITE_API_BASE=https://localhost:8080/ExampleSecurity
 ```
-# Local Mailpit defaults
+
+`VITE_API_BASE` is compiled into the frontend, so rebuild the frontend after changing it.
+
+### Sessions and encryption
+
+```properties
+SESSION_COOKIE_SECURE=true
+SESSION_COOKIE_SAME_SITE=none
+SESSION_COLLECTION_NAME=spring_sessions
+SESSION_TIMEOUT=30m
+FIELD_CRYPTO_ENABLED=true
+FIELD_CRYPTO_PASSPHRASE=replace-with-14-or-more-random-words
+FIELD_CRYPTO_MASTER_SALT_B64=replace-with-openssl-output
+```
+
+Different local frontend/backend ports normally require `SameSite=none` with HTTPS. Production traffic through one public origin normally uses `SameSite=lax`.
+
+### Optional Google login
+
+```properties
+GOOGLE_OAUTH_ENABLED=false
+GOOGLE_OAUTH_CLIENT_ID=
+GOOGLE_OAUTH_CLIENT_SECRET=
+```
+
+For local Google testing, create a Web application OAuth client and register exactly:
 
 ```text
-MAIL_HOST=mailpit
-MAIL_PORT=1025
-MAIL_USERNAME=
-MAIL_PASSWORD=
-MAIL_FROM=no-reply@example-security.local
-MAIL_SMTP_AUTH=false
-MAIL_SMTP_STARTTLS=false
-```
-# Login throttling
-
-```text
-LOGIN_MAX_USER_IP_FAILURES=5
-LOGIN_MAX_IP_FAILURES=25
-LOGIN_FAILURE_WINDOW_MINUTES=15
-LOGIN_LOCKOUT_MINUTES=15
-```
-# Audit / debugging
-
-```text
-SECURITY_AUDIT_PERSIST=true
-SECURITY_DEBUG_REQUEST_LOGGING=false
-```
-For real production use, do not use env.list as your long-term secret strategy. Use Docker secrets, Kubernetes secrets, a cloud secret manager, or another proper secret-management system.
-
-Important secret warning
-
-Do not commit any of these to Git:
-
-```text
-*.p12
-*.jks
-*.key
-*.crt
-*.pem
-env.list
-.env
-```
-Gmail app passwords
-MongoDB URIs with credentials
-SMTP passwords
-
-If any keystore, private key, Gmail app password, MongoDB URI, or secret has ever been pushed to GitHub, treat it as compromised and rotate it.
-
-Local certificates
-
-For local HTTPS, the backend uses a PKCS12 keystore.
-
-Example backend keystore generation:
-
-```text
-keytool -genkeypair \
-  -alias examplesecurity \
-  -keyalg RSA \
-  -keysize 2048 \
-  -storetype PKCS12 \
-  -keystore backend/src/main/resources/keystore.p12 \
-  -validity 3650 \
-  -storepass changeit \
-  -keypass changeit \
-  -dname "CN=localhost, OU=Dev, O=ExampleSecurity, L=Local, ST=Local, C=GB"
-```
-For Nginx frontend HTTPS, Nginx needs certificate and key files, not a .p12 file directly.
-
-If you have a local keystore.p12, you can extract the certificate:
-
-```text
-
-openssl pkcs12 \
-  -in frontend/certs/keystore.p12 \
-  -clcerts \
-  -nokeys \
-  -out frontend/certs/keystore.crt
-```
-And extract the private key:
-
-```text
-
-openssl pkcs12 \
-  -in frontend/certs/keystore.p12 \
-  -nocerts \
-  -nodes \
-  -out frontend/certs/keystore.key
+https://localhost:8080/ExampleSecurity/login/oauth2/code/google
 ```
 
-Do not commit these generated files.
+Set `GOOGLE_OAUTH_ENABLED=true` only after supplying both credentials. Blank credentials are permitted while it is disabled.
 
-Docker
+### Mail
 
-Build and run:
+Local Compose uses Mailpit. Gmail SMTP or another provider can be configured using `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM`, `MAIL_SMTP_AUTH` and `MAIL_SMTP_STARTTLS`.
 
-```text
-docker compose up --build
-```
-Or rebuild cleanly:
+## Selected API access rules
 
-```text
-docker compose down
-docker compose build --no-cache backend frontend
-docker compose up
-```
+All paths are beneath `/ExampleSecurity` through the backend context path.
 
-Then open:
+| Endpoint | Access |
+|---|---|
+| `GET /api/csrf` | Public |
+| `POST /api/login` | Public |
+| `POST /api/login/mfa` | Public while a challenge exists |
+| `POST /api/logout` | Session logout flow |
+| `GET /api/me` | Authenticated |
+| `GET /api/oauth/google/config` | Public |
+| `GET /api/oauth/google/login` | Public when Google is enabled |
+| `GET /api/oauth/google/status` | Authenticated |
+| `POST /api/oauth/google/link` | Authenticated and CSRF-protected |
+| `DELETE /api/oauth/google/link` | Authenticated and CSRF-protected |
+| `/api/office/**` | `OFFICE`, `OFFICE_ADMIN`, `HQ`, `SUPER` |
+| `/api/office-admin/**` | `OFFICE_ADMIN`, `HQ`, `SUPER` |
+| `/api/hq/**` | `HQ`, `SUPER` |
+| `/api/admin/**` | `SUPER` |
 
-```text
-https://localhost:5173
-```
+Controller and service checks further restrict users to permitted patient and office data.
 
-Mailpit is available at:
-
-```text
-http://localhost:8025
-```
-
-Running backend locally without Docker
-
-From the backend folder:
+## Testing and builds
 
 ```bash
 cd backend
-mvn clean test
-mvn spring-boot:run
+mvn test
+mvn package
 ```
-
-If running without Docker, make sure your MongoDB URI points to a MongoDB instance that is actually reachable from your machine.
-
-For local MongoDB outside Docker:
-
-```text
-MONGODB_URI=mongodb://example_security_app:YOUR_URL_ENCODED_PASSWORD@localhost:27017/example_security?authSource=example_security
-```
-For Docker Compose local MongoDB from inside the backend container:
-
-```text
-MONGODB_URI=mongodb://example_security_app:YOUR_URL_ENCODED_PASSWORD@mongo:27017/example_security?authSource=example_security
-```
-Inside a Docker container, localhost means the container itself, not the MongoDB container.
-
-Running frontend locally without Docker
-
-From the frontend folder:
 
 ```bash
 cd frontend
-npm install
-npm run dev
+npm ci
+npm run build
 ```
 
-For the full secure cookie flow, the frontend and backend URLs must match the configured HTTPS, CORS, and cookie settings.
-
-Initial login
-
-The backend creates an initial SUPER account if it does not already exist.
-
-Default local values:
-
-Field	Value
-
-```text
-Username	super
-Password	ChangeThisPassword123!
-```
-
-Change this before using the app beyond local testing.
-
-For any real deployment, do not use a default production password. Use a one-time bootstrap secret or force password rotation immediately.
-
-Useful manual checks
-
-After logging in as super, this should return your logged-in user and roles:
-
-```text
-fetch('https://localhost:8080/ExampleSecurity/api/me', {
-  credentials: 'include'
-})
-.then(async r => {
-  console.log(r.status);
-  console.log(await r.text());
-});
-```
-Expected:
-
-```text
-200
-{"username":"super","roles":["SUPER"]}
-```
-The admin users endpoint should work for SUPER:
-
-```text
-fetch('https://localhost:8080/ExampleSecurity/api/admin/users', {
-  credentials: 'include'
-})
-.then(async r => {
-  console.log(r.status);
-  console.log(await r.text());
-});
-```
-Expected:
-
-200
-
-For a user without SUPER, it should return:
-
-403
-Tests
-
-Run backend tests:
+For a full Docker rebuild:
 
 ```bash
-cd backend
-mvn clean test
+docker compose down
+docker compose up --build
 ```
 
-The test suite includes checks for:
+## Production deployment
 
-```text
-password hashing
-login throttling
-unauthenticated /api/me returns 401
-USER cannot access admin
-DEVELOPER cannot access admin
-SUPER can access admin
-CSRF blocks unsafe admin requests without a token
-login creates a server-side session
-logout works
-security headers are present
-Security status
-```
-This app is a strong learning, demo, and staging foundation for a secure local-login web application.
+The production design uses two application nodes behind the Krystal load balancer with MongoDB Atlas providing the application database and shared sessions. Every backend node must use the same MongoDB connection, encryption material, session collection, OAuth credentials and externally visible URLs.
 
-It is not automatically production-ready just because it runs. Before public production use, still review:
+The proxy must preserve `Host`, `X-Forwarded-Host`, `X-Forwarded-Proto`, `X-Forwarded-For` and `X-Forwarded-Port`; this is required for OAuth callback generation and accurate auditing.
 
-```text
-real TLS certificates
-secret management
-rotated secrets
-MongoDB Atlas IP restrictions
-least-privilege database user
-backups
-monitoring
-audit log retention
-container hardening
-dependency scanning
-production CORS settings
-CSRF settings for the real domain
-security review
-```
+See [README-Krystal-HA-Production-Deployment.md](README-Krystal-HA-Production-Deployment.md) and [infrastructure/README.md](infrastructure/README.md).
 
-A fair description is:
+## Operational cautions
 
-```text
-Use case	Status
-Private demo	Suitable
-Portfolio project	Suitable
-Internal staging	Suitable after config review
-Public production	Needs final deployment/security review
-```
-Project purpose
+- Never commit `env.list`, private keys, keystores or Google client secrets.
+- Back up Atlas and test restoration rather than relying only on successful jobs.
+- Protect encryption recovery material separately from database backups.
+- Keep SUPER, SMTP and MongoDB credentials independent.
+- Review audit records and throttling operationally.
+- Run dependency, container and application security scanning before production.
+- Treat clinical and identifying data as sensitive even when encrypted.
 
-In plain English:
+## Detailed documentation
 
-This app is a secure login and user-management system. It lets people sign in, gives different permissions to different kinds of users, lets an administrator manage accounts, verifies emails, resets passwords, and protects the system against common web attacks.
+- [Google OAuth login](README-Google-OAuth-Login.md)
+- [Authy-compatible MFA](README-Authy-MFA.md)
+- [Session cookie and CSRF design](README-Session-Cookie-CSRF.md)
+- [Encrypted clinical fields](README-Encrypted-Clinical-Fields.md)
+- [Production hardening](README-Production-Hardening.md)
+- [Security hardening fixes](README-Security-Hardening-Fixes.md)
+- [Security hardening round 2](README-Security-Hardening-Round-2.md)
+- [Load-balanced sessions](README-Load-Balanced-Sessions.md)
+- [Krystal high-availability deployment](README-Krystal-HA-Production-Deployment.md)
+- [Patient portal appointments](README-Patient-Portal-Appointments.md)
+- [Office appointment and clinical flow](README-Office-Appointment-Clinical-Flow.md)
+- [HQ offices and SUPER context](README-HQ-Offices-And-Super-Context.md)
 
-It is the foundation you would build on before adding the actual business features of a real website.
+## Licence and suitability
+
+Add the intended licence before distributing the project. Secure production operation also depends on infrastructure, secrets management, monitoring, maintenance and organizational controls outside the source code.
