@@ -18,7 +18,6 @@ readonly SCRIPT_NAME="$(basename "$0")"
 DOMAIN="${DOMAIN:-}"
 LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:-}"
 SSH_ALLOWED_CIDR="${SSH_ALLOWED_CIDR:-}"
-BACKUP_ALLOWED_CIDR="${BACKUP_ALLOWED_CIDR:-}"
 SSH_PORT="${SSH_PORT:-22}"
 REPO_URL="${REPO_URL:-https://github.com/CharlieSwires/example-security.git}"
 BRANCH="${BRANCH:-master}"
@@ -39,7 +38,6 @@ Required:
 
 Recommended:
   --ssh-cidr CIDR        IP/CIDR allowed to SSH, e.g. 203.0.113.10/32
-  --backup-cidr CIDR     Enable TLS MongoDB access only from this IP/CIDR
 
 Options:
   --ssh-port PORT        SSH port (default: 22)
@@ -53,8 +51,8 @@ Options:
   -h, --help             Show this help
 
 The script is designed for a fresh Ubuntu 24.04 Krystal VPS. It is safe to
-rerun for application updates: Git uses a fast-forward-only update, MongoDB's
-named volume is retained, and the production environment file is preserved.
+rerun for application updates: Git uses a fast-forward-only update and the
+production environment file is preserved. MongoDB Atlas and SMTP stay external.
 USAGE
 }
 
@@ -79,7 +77,6 @@ while (($#)); do
         --domain) DOMAIN="${2:?Missing value after --domain}"; shift 2 ;;
         --email) LETSENCRYPT_EMAIL="${2:?Missing value after --email}"; shift 2 ;;
         --ssh-cidr) SSH_ALLOWED_CIDR="${2:?Missing value after --ssh-cidr}"; shift 2 ;;
-        --backup-cidr) BACKUP_ALLOWED_CIDR="${2:?Missing value after --backup-cidr}"; shift 2 ;;
         --ssh-port) SSH_PORT="${2:?Missing value after --ssh-port}"; shift 2 ;;
         --repo) REPO_URL="${2:?Missing value after --repo}"; shift 2 ;;
         --branch) BRANCH="${2:?Missing value after --branch}"; shift 2 ;;
@@ -114,15 +111,13 @@ fi
     || die "Only amd64 and arm64 are supported."
 
 create_environment_template() {
-    local env_parent mongo_root_password mongo_app_password initial_super_password
+    local env_parent initial_super_password
     local crypto_passphrase crypto_salt word
 
     env_parent="$(dirname "$ENV_FILE")"
     install -d -m 0700 "$env_parent"
     umask 077
 
-    mongo_root_password="$(openssl rand -hex 24)"
-    mongo_app_password="$(openssl rand -hex 24)"
     initial_super_password="$(openssl rand -base64 36 | tr -d '\n')"
     crypto_salt="$(openssl rand -base64 32 | tr -d '\n')"
     crypto_passphrase=""
@@ -134,14 +129,8 @@ create_environment_template() {
     {
         printf '%s\n' '# Root-only production settings for ExampleSecurity.'
         printf '%s\n' '# Keep this file out of the Git repository and all backups unless separately encrypted.'
-        printf 'MONGO_ROOT_USERNAME=example_root\n'
-        printf 'MONGO_ROOT_PASSWORD=%s\n' "$mongo_root_password"
-        printf 'MONGO_APP_DATABASE=example_security\n'
-        printf 'MONGO_APP_USERNAME=example_app\n'
-        printf 'MONGO_APP_PASSWORD=%s\n' "$mongo_app_password"
-        printf 'MONGODB_URI=mongodb://example_app:%s@mongo:27017/example_security?authSource=example_security\n' "$mongo_app_password"
-        printf 'MONGO_BACKUP_USERNAME=example_backup\n'
-        printf 'MONGO_BACKUP_PASSWORD=%s\n' "$(openssl rand -hex 24)"
+        printf 'MONGODB_URI=CHANGE_ME_ATLAS_SRV_URI\n'
+        printf 'REQUIRE_EXTERNAL_SERVICES=true\n'
         printf '\nINITIAL_SUPER_USERNAME=super\n'
         printf 'INITIAL_SUPER_PASSWORD=%s\n' "$initial_super_password"
         printf '\nFIELD_CRYPTO_ENABLED=true\n'
@@ -182,8 +171,7 @@ environment_value() {
 validate_environment() {
     local key value
     local required=(
-        MONGO_ROOT_USERNAME MONGO_ROOT_PASSWORD MONGO_APP_DATABASE
-        MONGO_APP_USERNAME MONGO_APP_PASSWORD MONGODB_URI
+        MONGODB_URI
         INITIAL_SUPER_USERNAME INITIAL_SUPER_PASSWORD
         FIELD_CRYPTO_PASSPHRASE FIELD_CRYPTO_MASTER_SALT_B64
         MAIL_HOST MAIL_PORT MAIL_USERNAME MAIL_PASSWORD MAIL_FROM
@@ -200,18 +188,10 @@ validate_environment() {
 
     [[ "$(environment_value SECURITY_AUDIT_PERSIST)" == "true" ]] \
         || die "SECURITY_AUDIT_PERSIST must be true."
-}
-
-ensure_backup_credentials() {
-    [[ -n "$BACKUP_ALLOWED_CIDR" ]] || return 0
-    umask 077
-    if [[ -z "$(environment_value MONGO_BACKUP_USERNAME)" ]]; then
-        printf '\nMONGO_BACKUP_USERNAME=example_backup\n' >> "$ENV_FILE"
-    fi
-    if [[ -z "$(environment_value MONGO_BACKUP_PASSWORD)" ]]; then
-        printf 'MONGO_BACKUP_PASSWORD=%s\n' "$(openssl rand -hex 24)" >> "$ENV_FILE"
-    fi
-    chmod 0600 "$ENV_FILE"
+    [[ "$(environment_value MONGODB_URI)" == mongodb+srv://* ]] \
+        || die "MONGODB_URI must be a MongoDB Atlas mongodb+srv:// connection string."
+    [[ "$(environment_value MAIL_HOST)" != "mailpit" && "$(environment_value MAIL_HOST)" != "localhost" ]] \
+        || die "MAIL_HOST must identify an external SMTP service."
 }
 
 log "Installing operating-system packages"
@@ -222,22 +202,12 @@ apt-get install -y ca-certificates curl git gnupg nginx ufw certbot openssl ipca
 if [[ ! -f "$ENV_FILE" ]]; then
     log "Creating the production environment template"
     create_environment_template
-    printf '\nCreated %s with generated MongoDB, SUPER and encryption secrets.\n' "$ENV_FILE"
-    printf 'Edit its five MAIL_* CHANGE_ME values, then run this deployment command again.\n'
+    printf '\nCreated %s with generated SUPER and encryption secrets.\n' "$ENV_FILE"
+    printf 'Add the Atlas URI and external SMTP values, then run this command again.\n'
     printf 'The file is readable by root only and must never be committed to Git.\n'
     exit 2
 fi
-ensure_backup_credentials
 validate_environment
-
-if [[ -n "$BACKUP_ALLOWED_CIDR" ]]; then
-    ipcalc -c "$BACKUP_ALLOWED_CIDR" >/dev/null 2>&1 \
-        || die "Invalid --backup-cidr value: $BACKUP_ALLOWED_CIDR"
-    [[ "$(environment_value MONGO_BACKUP_USERNAME)" =~ ^[A-Za-z0-9._~-]+$ ]] \
-        || die "MONGO_BACKUP_USERNAME must contain only URL-safe characters."
-    [[ "$(environment_value MONGO_BACKUP_PASSWORD)" =~ ^[A-Za-z0-9._~-]+$ ]] \
-        || die "MONGO_BACKUP_PASSWORD must contain only URL-safe characters."
-fi
 
 if [[ "$SKIP_DNS_CHECK" != "true" ]]; then
     log "Checking public DNS"
@@ -283,9 +253,6 @@ else
 fi
 ufw allow 80/tcp comment 'HTTP and ACME'
 ufw allow 443/tcp comment 'HTTPS'
-if [[ -n "$BACKUP_ALLOWED_CIDR" ]]; then
-    ufw allow from "$BACKUP_ALLOWED_CIDR" to any port 27017 proto tcp comment 'ExampleSecurity MongoDB TLS'
-fi
 ufw --force enable
 
 log "Checking out the application"
@@ -303,7 +270,6 @@ readonly DEPLOY_DIR="/etc/example-security"
 readonly BACKEND_ENV="$DEPLOY_DIR/backend.env"
 readonly COMPOSE_FILE="$DEPLOY_DIR/docker-compose.yml"
 readonly GATEWAY_CONFIG="$DEPLOY_DIR/gateway.conf"
-readonly MONGO_INIT="$DEPLOY_DIR/mongo-init.js"
 readonly HOST_NGINX_AVAILABLE="/etc/nginx/sites-available/example-security.conf"
 readonly HOST_NGINX_ENABLED="/etc/nginx/sites-enabled/example-security.conf"
 readonly ACME_WEBROOT="/var/www/letsencrypt"
@@ -311,56 +277,8 @@ readonly ACME_WEBROOT="/var/www/letsencrypt"
 install -d -m 0700 "$DEPLOY_DIR"
 install -d -m 0755 "$ACME_WEBROOT/.well-known/acme-challenge"
 
-# The backend needs its application settings, but not MongoDB's root bootstrap
-# credentials. MONGODB_URI already contains the least-privilege application user.
-grep -vE '^MONGO_(ROOT|APP)_' "$ENV_FILE" > "$BACKEND_ENV"
+cp "$ENV_FILE" "$BACKEND_ENV"
 chmod 0600 "$BACKEND_ENV"
-
-cat > "$MONGO_INIT" <<'MONGO_INIT_JS'
-const databaseName = process.env.MONGO_APP_DATABASE;
-const applicationUser = process.env.MONGO_APP_USERNAME;
-const applicationPassword = process.env.MONGO_APP_PASSWORD;
-const backupEnabled = process.env.MONGO_BACKUP_ENABLED === 'true';
-const backupUser = process.env.MONGO_BACKUP_USERNAME;
-const backupPassword = process.env.MONGO_BACKUP_PASSWORD;
-
-if (!databaseName || !applicationUser || !applicationPassword) {
-  throw new Error('MongoDB application-user environment variables are required');
-}
-
-const applicationDatabase = db.getSiblingDB(databaseName);
-if (applicationDatabase.getUser(applicationUser) === null) {
-  applicationDatabase.createUser({
-    user: applicationUser,
-    pwd: applicationPassword,
-    roles: [{ role: 'readWrite', db: databaseName }]
-  });
-} else {
-  applicationDatabase.updateUser(applicationUser, {
-    pwd: applicationPassword,
-    roles: [{ role: 'readWrite', db: databaseName }]
-  });
-}
-
-if (backupEnabled) {
-  if (!backupUser || !backupPassword) {
-    throw new Error('MongoDB backup-user environment variables are required');
-  }
-  if (applicationDatabase.getUser(backupUser) === null) {
-    applicationDatabase.createUser({
-      user: backupUser,
-      pwd: backupPassword,
-      roles: [{ role: 'read', db: databaseName }]
-    });
-  } else {
-    applicationDatabase.updateUser(backupUser, {
-      pwd: backupPassword,
-      roles: [{ role: 'read', db: databaseName }]
-    });
-  }
-}
-MONGO_INIT_JS
-chmod 0644 "$MONGO_INIT"
 
 cat > "$GATEWAY_CONFIG" <<'GATEWAY_NGINX'
 worker_processes auto;
@@ -406,42 +324,8 @@ http {
 }
 GATEWAY_NGINX
 
-MONGO_BACKUP_ENABLED=false
-MONGO_LOOPBACK_PORTS=""
-if [[ -n "$BACKUP_ALLOWED_CIDR" ]]; then
-    MONGO_BACKUP_ENABLED=true
-    MONGO_LOOPBACK_PORTS=$'    ports:\n      - "127.0.0.1:27018:27017"'
-fi
-
 cat > "$COMPOSE_FILE" <<COMPOSE_YAML
 services:
-  mongo:
-    image: mongo:7
-    restart: unless-stopped
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: \${MONGO_ROOT_USERNAME:?required}
-      MONGO_INITDB_ROOT_PASSWORD: \${MONGO_ROOT_PASSWORD:?required}
-      MONGO_APP_DATABASE: \${MONGO_APP_DATABASE:?required}
-      MONGO_APP_USERNAME: \${MONGO_APP_USERNAME:?required}
-      MONGO_APP_PASSWORD: \${MONGO_APP_PASSWORD:?required}
-      MONGO_BACKUP_ENABLED: "$MONGO_BACKUP_ENABLED"
-      MONGO_BACKUP_USERNAME: \${MONGO_BACKUP_USERNAME:-disabled}
-      MONGO_BACKUP_PASSWORD: \${MONGO_BACKUP_PASSWORD:-disabled}
-$MONGO_LOOPBACK_PORTS
-    volumes:
-      - mongo-data:/data/db
-      - $MONGO_INIT:/docker-entrypoint-initdb.d/10-application-user.js:ro
-    networks:
-      - data
-    healthcheck:
-      test: ["CMD-SHELL", "mongosh --quiet --host localhost --username \"\$\${MONGO_INITDB_ROOT_USERNAME}\" --password \"\$\${MONGO_INITDB_ROOT_PASSWORD}\" --authenticationDatabase admin --eval \"db.adminCommand('ping').ok\" | grep 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 20s
-    logging:
-      driver: local
-
   backend:
     build:
       context: $APP_DIR/backend
@@ -458,12 +342,9 @@ $MONGO_LOOPBACK_PORTS
       BACKEND_BASE_URL: "https://$DOMAIN/ExampleSecurity"
       SECURITY_AUDIT_PERSIST: "true"
       SECURITY_DEBUG_REQUEST_LOGGING: "false"
-    depends_on:
-      mongo:
-        condition: service_healthy
+      REQUIRE_EXTERNAL_SERVICES: "true"
     networks:
       - app
-      - data
     logging:
       driver: local
 
@@ -496,11 +377,6 @@ $MONGO_LOOPBACK_PORTS
 
 networks:
   app:
-  data:
-    internal: true
-
-volumes:
-  mongo-data:
 COMPOSE_YAML
 chmod 0600 "$COMPOSE_FILE"
 
@@ -510,12 +386,6 @@ docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build \
     --scale backend="$BACKEND_REPLICAS" \
     --scale frontend="$FRONTEND_REPLICAS"
 
-if [[ "$MONGO_BACKUP_ENABLED" == "true" ]]; then
-    # This also creates the backup user when direct TLS access is enabled on an
-    # existing MongoDB volume, because entrypoint init scripts run only once.
-    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T mongo sh -c \
-        'mongosh --quiet --host localhost --username "$MONGO_INITDB_ROOT_USERNAME" --password "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin /docker-entrypoint-initdb.d/10-application-user.js'
-fi
 
 log "Preparing Nginx for Let's Encrypt validation"
 cat > "$HOST_NGINX_AVAILABLE" <<NGINX_HTTP
@@ -617,50 +487,6 @@ nginx -t
 systemctl reload nginx
 systemctl enable --now certbot.timer 2>/dev/null || true
 
-if [[ "$MONGO_BACKUP_ENABLED" == "true" ]]; then
-    log "Configuring allowlisted MongoDB access through TLS"
-    apt-get install -y stunnel4
-    cat > /etc/stunnel/example-security-mongodb.conf <<STUNNEL_CONFIG
-client = no
-foreground = no
-setuid = stunnel4
-setgid = stunnel4
-sslVersionMin = TLSv1.2
-
-[example-security-mongodb]
-accept = 0.0.0.0:27017
-connect = 127.0.0.1:27018
-cert = /etc/letsencrypt/live/$DOMAIN/fullchain.pem
-key = /etc/letsencrypt/live/$DOMAIN/privkey.pem
-TIMEOUTclose = 0
-STUNNEL_CONFIG
-    chmod 0600 /etc/stunnel/example-security-mongodb.conf
-    if grep -q '^ENABLED=' /etc/default/stunnel4; then
-        sed -i 's/^ENABLED=.*/ENABLED=1/' /etc/default/stunnel4
-    else
-        printf '\nENABLED=1\n' >> /etc/default/stunnel4
-    fi
-    systemctl enable --now stunnel4
-    systemctl restart stunnel4
-
-    BACKUP_URI_FILE="/root/example-security-backup-uri.txt"
-    printf 'mongodb://%s:%s@%s:27017/%s?authSource=%s&authMechanism=SCRAM-SHA-256&directConnection=true&tls=true\n' \
-        "$(environment_value MONGO_BACKUP_USERNAME)" \
-        "$(environment_value MONGO_BACKUP_PASSWORD)" \
-        "$DOMAIN" \
-        "$(environment_value MONGO_APP_DATABASE)" \
-        "$(environment_value MONGO_APP_DATABASE)" \
-        > "$BACKUP_URI_FILE"
-    chmod 0600 "$BACKUP_URI_FILE"
-
-    cat > /etc/letsencrypt/renewal-hooks/deploy/restart-example-security-mongodb-tls.sh <<'STUNNEL_RENEW_HOOK'
-#!/bin/sh
-set -eu
-/bin/systemctl restart stunnel4
-STUNNEL_RENEW_HOOK
-    chmod 0750 /etc/letsencrypt/renewal-hooks/deploy/restart-example-security-mongodb-tls.sh
-fi
-
 log "Verifying the deployment"
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps
 curl --fail --silent --show-error --head "https://$DOMAIN/" >/dev/null
@@ -672,11 +498,6 @@ printf 'API:         https://%s/ExampleSecurity\n' "$DOMAIN"
 printf 'Secrets:     %s (root-only)\n' "$ENV_FILE"
 printf 'Compose:     %s\n' "$COMPOSE_FILE"
 printf '\nThe application gateway is bound only to 127.0.0.1.\n'
-if [[ "$MONGO_BACKUP_ENABLED" == "true" ]]; then
-    printf 'MongoDB is bound to VPS loopback and reached externally only through the TLS proxy.\n'
-    printf 'MongoDB TLS access is restricted to: %s\n' "$BACKUP_ALLOWED_CIDR"
-    printf 'Root-only backup connection URL: /root/example-security-backup-uri.txt\n'
-else
-    printf 'MongoDB has no host port and is reachable only inside the private Docker network.\n'
-fi
-printf 'Next: configure your encrypted off-site GFS backup and perform a test restore.\n'
+printf 'MongoDB is provided by Atlas; no MongoDB service or database port runs on this VPS.\n'
+printf 'SMTP is external; no local mail-capture service runs on this VPS.\n'
+printf 'Next: verify Atlas backups and perform a test restore.\n'

@@ -117,7 +117,9 @@ Copy the environment example and replace its placeholders:
 cp env.list.example env.list
 ```
 
-Keep `env.list` out of Git. Configure strong independent MongoDB and bootstrap passwords plus both field-encryption values. Generate a 32-byte master salt with:
+Keep `env.list` out of Git. Supply a MongoDB Atlas SRV connection string,
+authenticated external SMTP credentials, a strong bootstrap password, and both
+field-encryption values. Generate a 32-byte master salt with:
 
 ```bash
 openssl rand -base64 32
@@ -133,7 +135,6 @@ docker compose up --build --scale backend=2 --scale frontend=2
 |---|---|
 | Frontend | `https://localhost:5173` |
 | Backend | `https://localhost:8080/ExampleSecurity` |
-| Mailpit | `http://localhost:8025` |
 
 The browser may initially warn about a locally generated certificate.
 
@@ -142,7 +143,8 @@ The browser may initially warn about a locally generated certificate.
 ### Database, URLs and bootstrap
 
 ```properties
-MONGODB_URI=mongodb://example_security_app:REPLACE_ME@mongo:27017/example_security?authSource=example_security
+MONGODB_URI=mongodb+srv://example_security_app:URL_ENCODED_PASSWORD@YOUR_CLUSTER.mongodb.net/example_security?retryWrites=true&w=majority
+REQUIRE_EXTERNAL_SERVICES=true
 INITIAL_SUPER_USERNAME=super
 INITIAL_SUPER_PASSWORD=replace-with-a-long-random-password
 CORS_ALLOWED_ORIGINS=https://localhost:5173
@@ -185,7 +187,13 @@ Set `GOOGLE_OAUTH_ENABLED=true` only after supplying both credentials. Blank cre
 
 ### Mail
 
-Local Compose uses Mailpit. Gmail SMTP or another provider can be configured using `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM`, `MAIL_SMTP_AUTH` and `MAIL_SMTP_STARTTLS`.
+Mailpit is not included. Configure Gmail SMTP or another external provider using
+`MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM`,
+`MAIL_SMTP_AUTH=true` and `MAIL_SMTP_STARTTLS=true`. Compose enables strict
+startup validation and refuses local/placeholder external-service settings.
+
+See [README-MongoDB-Authentication.md](README-MongoDB-Authentication.md) for
+the Atlas user and network-access checklist.
 
 ## Selected API access rules
 

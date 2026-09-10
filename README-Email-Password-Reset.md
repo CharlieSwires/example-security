@@ -12,29 +12,13 @@ This version adds:
 - Every logged-in user can request a password change link using **Email me a change password link**.
 - Password reset tokens are stored hashed, not as plain reset tokens.
 
-## Local Docker email testing
+## Email testing
 
-Docker Compose includes Mailpit.
-
-Run:
-
-```bash
-docker compose up --build
-```
-
-Open the app:
-
-```text
-http://localhost:5173
-```
-
-Open Mailpit:
-
-```text
-http://localhost:8025
-```
-
-Verification and reset emails appear in Mailpit.
+Docker Compose no longer includes Mailpit. Configure a sandbox account at an
+external SMTP provider (or a dedicated test mailbox at your production
+provider) in `env.list`, then run `docker compose up --build`. Verification and
+reset messages are delivered through that provider. Do not use a real customer
+mailing list for development.
 
 ## Important flows
 

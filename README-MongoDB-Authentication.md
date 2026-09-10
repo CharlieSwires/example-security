@@ -1,29 +1,20 @@
-# MongoDB authentication and network isolation
+# MongoDB Atlas setup
 
-The default Compose deployment no longer publishes port 27017 to the host.
-MongoDB is reachable only by containers on the private Compose network and now
-requires authentication.
+The application uses MongoDB Atlas only. No MongoDB container or database port
+is included in either Compose deployment.
 
-Before starting a new deployment, copy `env.list.example` to `env.list` and
-replace both example passwords with different long, random URL-safe values. The
-application connects with the least-privileged `MONGO_APP_USERNAME`; the root
-account is reserved for database administration.
+1. Create an Atlas cluster and an application database user with read/write
+   access to the `example_security` database.
+2. Add the public outbound IP of each machine that runs the backend to the Atlas
+   project IP access list. Do not use `0.0.0.0/0` for production.
+3. Copy the Atlas Drivers connection string into `MONGODB_URI`, include the
+   `/example_security` database path, and URL-encode reserved characters in the
+   password.
+4. Leave `REQUIRE_EXTERNAL_SERVICES=true` enabled.
 
-The initialization script runs only for an empty MongoDB data volume. If this is
-an existing deployment, do not simply enable authentication and restart: first
-take and verify a backup, then create the root and application users while the
-old database is still reachable. Alternatively, restore the verified dump into
-a newly initialized authenticated volume.
-
-For backups, run `mongodump` inside the MongoDB container or connect through an
-SSH tunnel. Do not publish 27017 on the public VPS. If local Compass access is
-temporarily required, use a development-only override binding it to loopback:
-
-```yaml
-services:
-  mongo:
-    ports:
-      - "127.0.0.1:27017:27017"
+```properties
+MONGODB_URI=mongodb+srv://USERNAME:URL_ENCODED_PASSWORD@YOUR_CLUSTER.mongodb.net/example_security?retryWrites=true&w=majority
 ```
 
-Remove that override when it is no longer needed.
+Atlas manages the replica set. Configure backups and periodically test a
+restore in Atlas; the Krystal host no longer owns a MongoDB volume.

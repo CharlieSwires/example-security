@@ -49,6 +49,8 @@ spring:
             enable: ${MAIL_SMTP_STARTTLS:true}
 
 app:
+  external-services:
+    require: ${REQUIRE_EXTERNAL_SERVICES:false}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,https://localhost:5173}
   frontend-base-url: ${FRONTEND_BASE_URL:https://localhost:5173}

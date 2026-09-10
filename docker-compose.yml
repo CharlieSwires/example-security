@@ -15,14 +15,9 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://localhost:5173}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-https://localhost:5173}
       BACKEND_BASE_URL: ${BACKEND_BASE_URL:-https://localhost:8080/ExampleSecurity}
-    depends_on:
-      mongo:
-        condition: service_healthy
-      mailpit:
-        condition: service_started
+      REQUIRE_EXTERNAL_SERVICES: "true"
     networks:
       - app
-      - data
 
   frontend:
     build:
@@ -51,34 +46,5 @@ services:
     networks:
       - app
 
-  mongo:
-    image: mongo:7
-    env_file:
-      - ./env.list
-    volumes:
-      - mongo-data:/data/db
-      - ./mongo-init:/docker-entrypoint-initdb.d:ro
-    networks:
-      - data
-    healthcheck:
-      test: ["CMD-SHELL", "mongosh --quiet --host localhost --username \"$${MONGO_INITDB_ROOT_USERNAME}\" --password \"$${MONGO_INITDB_ROOT_PASSWORD}\" --authenticationDatabase admin --eval \"db.adminCommand('ping').ok\" | grep 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 20s
-
-  mailpit:
-    image: axllent/mailpit:latest
-    ports:
-      - "8025:8025"
-      - "1025:1025"
-    networks:
-      - app
-
 networks:
   app:
-  data:
-    internal: true
-
-volumes:
-  mongo-data:
