@@ -1,14 +1,17 @@
 # Docker usage
 
-This project now supports duplicate frontend and backend containers behind a local Nginx load balancer.
-Backend login/session state is stored in MongoDB using Spring Session, so the containers do **not** need sticky sessions.
+The default build runs one frontend and one backend without a separate Nginx
+load-balancer container. The frontend's Nginx serves React, terminates local
+HTTPS and proxies the API. Replica mode adds the load-balancer automatically.
+Backend login/session state is stored in Atlas using Spring Session, so replicas
+do **not** need sticky sessions.
 
 ## Run locally
 
 From the `example-security` folder:
 
 ```bash
-docker compose up --build --scale backend=2 --scale frontend=2
+./scripts_docker_compose_up.sh
 ```
 
 Then open:
@@ -17,7 +20,7 @@ Then open:
 https://localhost:5173
 ```
 
-The backend API is exposed through the load balancer at:
+The backend API is proxied by the frontend Nginx at:
 
 ```text
 https://localhost:8080/ExampleSecurity
@@ -29,6 +32,20 @@ https://localhost:8080/ExampleSecurity
 username: value of INITIAL_SUPER_USERNAME
 password: value of INITIAL_SUPER_PASSWORD
 ```
+
+## Replica mode
+
+Pass backend and frontend replica counts to the launcher:
+
+```bash
+./scripts_docker_compose_up.sh 2 2
+```
+
+If either count is greater than one, the launcher uses
+`docker-compose.scaled.yml`. Only then is the separate Nginx load-balancer
+started. Running `docker compose up --scale ...` directly against the default
+file is intentionally unsupported because every replica would contend for the
+same host ports.
 
 ## Required external services
 
@@ -51,13 +68,15 @@ Mailpit/localhost, or if required values still contain placeholders.
 
 ## Ports
 
-Only the load balancer publishes ports to the host:
+In default mode the single frontend Nginx publishes both browser-facing ports.
+In replica mode only the load-balancer publishes them:
 
 ```text
-frontend load balancer: https://localhost:5173
-backend load balancer:  https://localhost:8080/ExampleSecurity
+frontend: https://localhost:5173
+backend:  https://localhost:8080/ExampleSecurity
 ```
 
-The individual frontend/backend replicas are internal Docker services.
+In replica mode the individual frontend/backend containers remain internal
+Docker services.
 See [README-MongoDB-Authentication.md](README-MongoDB-Authentication.md) for
 Atlas setup and network access.

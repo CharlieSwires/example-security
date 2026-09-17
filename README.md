@@ -101,11 +101,12 @@ See [README-Encrypted-Clinical-Fields.md](README-Encrypted-Clinical-Fields.md).
 ```text
 backend/                    Spring Boot API
 frontend/                   React/Vite frontend and Nginx configuration
-load-balancer/              Local TLS/load-balancer configuration
+load-balancer/              Nginx configuration used only in replica mode
 mongo-init/                 Authenticated local MongoDB bootstrap
 infrastructure/             Production Terraform, cloud-init and scripts
 deployment/krystal/         Krystal deployment support
-docker-compose.yml          Local multi-container environment
+docker-compose.yml          Default one-frontend/one-backend environment
+docker-compose.scaled.yml   Replica mode with the Nginx load-balancer
 docker-compose.production.yml
 ```
 
@@ -125,10 +126,23 @@ field-encryption values. Generate a 32-byte master salt with:
 openssl rand -base64 32
 ```
 
-Generate the local certificates with the supplied script, then start the application:
+Generate the local certificates with the supplied script, then start the
+default single-instance application. The frontend Nginx terminates HTTPS and
+proxies the backend; no separate load-balancer container is created:
 
 ```bash
-docker compose up --build --scale backend=2 --scale frontend=2
+./scripts_docker_compose_up.sh
+```
+
+To request replicas, pass the backend and frontend counts. Either value above
+one automatically selects `docker-compose.scaled.yml` and restores the Nginx
+load-balancer container:
+
+```bash
+./scripts_docker_compose_up.sh 2 2
+
+to remove the Nginx load balancer when bringing down:
+docker compose -f docker-compose.scaled.yml down --remove-orphans
 ```
 
 | Service | Default local URL |

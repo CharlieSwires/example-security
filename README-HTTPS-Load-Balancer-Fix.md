@@ -33,7 +33,7 @@ Browser -> HTTPS -> load-balancer -> HTTP -> frontend/backend containers
 
 ```bash
 docker compose down
-docker compose up --build --scale backend=2 --scale frontend=2
+./scripts_docker_compose_up.sh 2 2
 ```
 
 Then open:

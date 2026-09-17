@@ -324,6 +324,32 @@ http {
 }
 GATEWAY_NGINX
 
+USE_GATEWAY=false
+FRONTEND_PORTS=$'    ports:\n      - "127.0.0.1:18000:80"'
+GATEWAY_SERVICE=""
+if (( BACKEND_REPLICAS > 1 || FRONTEND_REPLICAS > 1 )); then
+    USE_GATEWAY=true
+    FRONTEND_PORTS=""
+    GATEWAY_SERVICE=$(cat <<GATEWAY_SERVICE_YAML
+
+  gateway:
+    image: nginx:1.31.1-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:18000:80"
+    volumes:
+      - $GATEWAY_CONFIG:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - app
+    logging:
+      driver: local
+GATEWAY_SERVICE_YAML
+)
+fi
+
 cat > "$COMPOSE_FILE" <<COMPOSE_YAML
 services:
   backend:
@@ -351,29 +377,16 @@ services:
   frontend:
     build:
       context: $APP_DIR/frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.production
       args:
-        VITE_API_BASE: "https://$DOMAIN/ExampleSecurity"
+        VITE_API_BASE: "/ExampleSecurity"
     restart: unless-stopped
+$FRONTEND_PORTS
     networks:
       - app
     logging:
       driver: local
-
-  gateway:
-    image: nginx:1.31.1-alpine
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:18000:80"
-    volumes:
-      - $GATEWAY_CONFIG:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - frontend
-      - backend
-    networks:
-      - app
-    logging:
-      driver: local
+$GATEWAY_SERVICE
 
 networks:
   app:
@@ -498,6 +511,11 @@ printf 'API:         https://%s/ExampleSecurity\n' "$DOMAIN"
 printf 'Secrets:     %s (root-only)\n' "$ENV_FILE"
 printf 'Compose:     %s\n' "$COMPOSE_FILE"
 printf '\nThe application gateway is bound only to 127.0.0.1.\n'
+if [[ "$USE_GATEWAY" == "true" ]]; then
+    printf 'Replica mode: the local Nginx gateway balances %s backend and %s frontend containers.\n' "$BACKEND_REPLICAS" "$FRONTEND_REPLICAS"
+else
+    printf 'Single-instance mode: frontend Nginx is exposed directly; no separate gateway container is running.\n'
+fi
 printf 'MongoDB is provided by Atlas; no MongoDB service or database port runs on this VPS.\n'
 printf 'SMTP is external; no local mail-capture service runs on this VPS.\n'
 printf 'Next: verify Atlas backups and perform a test restore.\n'

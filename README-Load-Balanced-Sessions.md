@@ -28,7 +28,7 @@ SESSION_COOKIE_SAME_SITE=lax
 Then run two frontends and two backends behind Nginx:
 
 ```bash
-docker compose up --build --scale backend=2 --scale frontend=2
+./scripts_docker_compose_up.sh 2 2
 ```
 
 Open:
