@@ -1,3 +1,8 @@
+/*==========================================================================
+Copyright © 2026 Charlie's Tenacity Ltd. All rights reserved.
+
+This source code is proprietary and confidential. Unauthorised copying, modification, distribution or use is prohibited.
+============================================================================*/
 package com.example.security.controller;
 
 import com.example.security.dto.MfaEnableResponse;
@@ -15,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.List;
+
 
 @RestController
 @RequestMapping("/api/mfa")

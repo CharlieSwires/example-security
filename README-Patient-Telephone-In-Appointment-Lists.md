@@ -1,3 +1,9 @@
+# Copyright
+
+Copyright © 2026 Charlie's Tenacity Ltd. All rights reserved.
+
+This is proprietary software. No permission is granted to copy, modify, distribute, sublicense or use this software except under a written licence issued by Charlie's Tenacity Ltd. Third-party components remain subject to their respective licences.
+
 # Patient telephone in appointment lists
 
 The Office and Office Admin appointment lists now display the patient's telephone number returned by `PatientAppointmentDocumentDto.patientTelephone`.

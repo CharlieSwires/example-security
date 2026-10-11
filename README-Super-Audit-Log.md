@@ -1,3 +1,9 @@
+# Copyright
+
+Copyright © 2026 Charlie's Tenacity Ltd. All rights reserved.
+
+This is proprietary software. No permission is granted to copy, modify, distribute, sublicense or use this software except under a written licence issued by Charlie's Tenacity Ltd. Third-party components remain subject to their respective licences.
+
 # SUPER audit log screen
 
 The SUPER administration screen now displays the persisted MongoDB security audit log while preserving the existing Authy MFA implementation.

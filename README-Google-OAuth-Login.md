@@ -1,3 +1,9 @@
+# Copyright
+
+Copyright © 2026 Charlie's Tenacity Ltd. All rights reserved.
+
+This is proprietary software. No permission is granted to copy, modify, distribute, sublicense or use this software except under a written licence issued by Charlie's Tenacity Ltd. Third-party components remain subject to their respective licences.
+
 # Google sign-in (OAuth 2.0 / OpenID Connect)
 
 The application supports optional **Sign in with Google** for existing users. Google identifies the

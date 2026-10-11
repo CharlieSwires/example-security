@@ -1,3 +1,9 @@
+# Copyright
+
+Copyright © 2026 Charlie's Tenacity Ltd. All rights reserved.
+
+This is proprietary software. No permission is granted to copy, modify, distribute, sublicense or use this software except under a written licence issued by Charlie's Tenacity Ltd. Third-party components remain subject to their respective licences.
+
 # ExampleSecurity — Optician Hub
 
 ExampleSecurity is a Spring Boot and React reference application for an ophthalmic clinic network. It combines role-based patient and practice workflows with production-style authentication, encrypted clinical fields, shared server-side sessions, audit logging and deployment support.

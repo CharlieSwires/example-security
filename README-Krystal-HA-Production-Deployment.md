@@ -1,3 +1,9 @@
+# Copyright
+
+Copyright © 2026 Charlie's Tenacity Ltd. All rights reserved.
+
+This is proprietary software. No permission is granted to copy, modify, distribute, sublicense or use this software except under a written licence issued by Charlie's Tenacity Ltd. Third-party components remain subject to their respective licences.
+
 # Krystal High-Availability Production Deployment
 
 This document describes the production deployment design added to `example-security` for running two independent Krystal/Katapult application servers behind a Krystal managed load balancer, with MongoDB Atlas as the shared database and Spring Session store.

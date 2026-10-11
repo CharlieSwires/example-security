@@ -22,6 +22,12 @@ import org.springframework.web.server.ResponseStatusException;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Map;
+/*==========================================================================
+Copyright © 2026 Charlie's Tenacity Ltd. All rights reserved.
+
+This source code is proprietary and confidential. Unauthorised copying, modification, distribution or use is prohibited.
+============================================================================*/
+
 
 @RestController
 @RequestMapping("/api/oauth/google")

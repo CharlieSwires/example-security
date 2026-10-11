@@ -1,3 +1,8 @@
+/*==========================================================================
+Copyright © 2026 Charlie's Tenacity Ltd. All rights reserved.
+
+This source code is proprietary and confidential. Unauthorised copying, modification, distribution or use is prohibited.
+============================================================================*/
 package com.example.security.controller;
 
 import org.springframework.http.HttpStatus;
@@ -11,6 +16,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.UUID;
+
 
 @RestControllerAdvice
 public class ApiExceptionHandler {

@@ -1,3 +1,8 @@
+/*==========================================================================
+Copyright © 2026 Charlie's Tenacity Ltd. All rights reserved.
+
+This source code is proprietary and confidential. Unauthorised copying, modification, distribution or use is prohibited. 
+============================================================================*/
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import 'bootstrap/dist/css/bootstrap.min.css';
