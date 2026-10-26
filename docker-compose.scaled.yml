@@ -6,6 +6,7 @@ services:
     env_file:
       - ./env.list
     environment:
+      TZ: Etc/UTC
       SSL_ENABLED: ${SSL_ENABLED:-false}
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
       SESSION_COOKIE_SAME_SITE: ${SESSION_COOKIE_SAME_SITE:-none}

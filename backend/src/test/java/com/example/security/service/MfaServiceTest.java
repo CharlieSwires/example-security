@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.data.mongodb.core.MongoOperations;
 
 import java.util.Optional;
+import java.time.Clock;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -23,7 +24,7 @@ class MfaServiceTest {
         when(users.findByUsername("alice")).thenReturn(Optional.of(user));
         when(crypto.encryptNullable("secret")).thenReturn("encrypted-secret");
 
-        MfaService service = new MfaService(users, crypto, mock(MongoOperations.class));
+        MfaService service = new MfaService(users, crypto, mock(MongoOperations.class), Clock.systemUTC());
         service.enable("alice", "secret");
 
         assertThat(user.getRecoveryCodeHashes())

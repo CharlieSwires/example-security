@@ -29,6 +29,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -52,13 +53,15 @@ public class MfaService {
     private final UserRepository userRepository;
     private final FieldCryptoService crypto;
     private final MongoOperations mongoOperations;
+    private final Clock clock;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public MfaService(UserRepository userRepository, FieldCryptoService crypto,
-                      MongoOperations mongoOperations) {
+                      MongoOperations mongoOperations, Clock clock) {
         this.userRepository = userRepository;
         this.crypto = crypto;
         this.mongoOperations = mongoOperations;
+        this.clock = clock;
     }
 
     public boolean isEnabled(String username) {
@@ -83,7 +86,9 @@ public class MfaService {
     public boolean verifySecret(String secret, String code) {
         String normalized = normalizeTotp(code);
         if (normalized == null) return false;
-        long counter = Instant.now().getEpochSecond() / TOTP_PERIOD_SECONDS;
+        // RFC 6238 is based on UTC Unix epoch seconds, never local wall-clock time.
+        // Using the injected UTC clock also makes the BST/GMT boundary testable.
+        long counter = Instant.now(clock).getEpochSecond() / TOTP_PERIOD_SECONDS;
         // Accept one step either side for small clock differences.
         for (long candidate = counter - 1; candidate <= counter + 1; candidate++) {
             if (constantTimeEquals(normalized, totp(secret, candidate))) return true;
@@ -106,7 +111,7 @@ public class MfaService {
         user.setTotpSecretEncrypted(crypto.encryptNullable(secret));
         user.setRecoveryCodeHashes(hashes);
         user.setMfaEnabled(true);
-        user.setMfaEnrolledAt(Instant.now());
+        user.setMfaEnrolledAt(Instant.now(clock));
         userRepository.save(user);
         return recoveryCodes;
     }

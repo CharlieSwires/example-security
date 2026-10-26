@@ -67,6 +67,12 @@ Users can enrol Authy or another RFC 6238-compatible authenticator. For an MFA-e
 - Encrypted TOTP secret
 - One-use recovery codes stored only as hashes
 
+TOTP secrets do not expire because of age, and the BST-to-GMT transition does
+not change their calculation. If the server and phone clocks agree but every
+code fails, Authy may contain an obsolete enrolment secret that no longer
+matches the user's encrypted secret; use the documented recovery and
+re-enrolment procedure.
+
 See [README-Authy-MFA.md](README-Authy-MFA.md).
 
 ### Google sign-in
