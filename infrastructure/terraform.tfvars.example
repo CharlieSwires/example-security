@@ -1,0 +1,28 @@
+# Copy this file to terraform.tfvars and replace every placeholder.
+# Never put API keys, application passwords, Atlas credentials, OAuth secrets,
+# Authy secrets, SMTP passwords or field-encryption secrets in this file.
+
+manage_infrastructure = false
+
+app_name    = "example-security"
+domain_name = "charlie-example-security.co.uk"
+node_count  = 2
+vm_names    = ["sweet-quiet-caterpillar", "shapely-yummy-kiwi"]
+
+# Discover valid values using the commands in README.md.
+vm_package         = "REPLACE_WITH_VERIFIED_PACKAGE_PERMALINK_OR_ID"
+disk_template      = "REPLACE_WITH_VERIFIED_UBUNTU_TEMPLATE_PERMALINK_OR_ID"
+system_disk_size_gb = 80
+
+# Restrict this to the current administrator address, for example 203.0.113.7/32.
+trusted_admin_cidr = "REPLACE_WITH_ADMIN_PUBLIC_IP/32"
+
+# Must exactly match the appropriate entry returned by
+# data.katapult_global_address_lists.global.
+load_balancer_address_list_name = "REPLACE_WITH_KRYSTAL_MANAGED_LB_LIST_NAME"
+
+# Existing certificate ID from Krystal Cloud, not the certificate text or key.
+certificate_ids = ["REPLACE_WITH_CERTIFICATE_ID"]
+
+# Set true only immediately before an import or a reviewed new deployment.
+# manage_infrastructure = true
