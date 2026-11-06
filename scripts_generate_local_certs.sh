@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PASSWORD="${1:-VirLondoJakar67@}"
+PASSWORD="${1:-changeit}"
 ALIAS="examplesecurity"
 
 rm -f backend/src/main/resources/keystore.* frontend/certs/keystore.*

@@ -115,7 +115,7 @@ backend/                    Spring Boot API
 frontend/                   React/Vite frontend and Nginx configuration
 load-balancer/              Nginx configuration used only in replica mode
 mongo-init/                 Authenticated local MongoDB bootstrap
-infrastructure/             Production Terraform, cloud-init and scripts
+infrastructure/             Krystal Terraform and deployment scripts
 deployment/krystal/         Krystal deployment support
 docker-compose.yml          Default one-frontend/one-backend environment
 docker-compose.scaled.yml   Replica mode with the Nginx load-balancer
