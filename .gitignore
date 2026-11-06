@@ -6,6 +6,7 @@ dist/
 # Local environment/secrets
 env.list
 .env
+backend.env
 
 # Local certificates / keystores - never commit
 *.p12
