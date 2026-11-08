@@ -112,6 +112,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/csrf").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/oauth/google/config", "/api/oauth/google/login").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/monitoring/snapshot").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/login/mfa").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/email/verify").permitAll()

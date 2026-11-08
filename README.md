@@ -116,6 +116,7 @@ frontend/                   React/Vite frontend and Nginx configuration
 load-balancer/              Nginx configuration used only in replica mode
 mongo-init/                 Authenticated local MongoDB bootstrap
 infrastructure/             Krystal Terraform and deployment scripts
+monitoring-desktop/         Java 17 Swing external monitor and Twilio alerts
 deployment/krystal/         Krystal deployment support
 docker-compose.yml          Default one-frontend/one-backend environment
 docker-compose.scaled.yml   Replica mode with the Nginx load-balancer
@@ -273,6 +274,14 @@ The proxy must preserve `Host`, `X-Forwarded-Host`, `X-Forwarded-Proto`, `X-Forw
 
 See [README-Krystal-HA-Production-Deployment.md](README-Krystal-HA-Production-Deployment.md) and [infrastructure/README.md](infrastructure/README.md).
 
+## External monitoring and SMS alerts
+
+The optional `monitoring-desktop` module is a Java 17 Swing application intended for a separate, usually-on laptop. It checks the public health URL and response time, TLS expiry, MongoDB reachability, and operational JVM/container values from every backend instance observed through the load balancer. It can send transition and recovery alerts through Twilio without storing credentials in source code.
+
+Enable the protected endpoint only after setting a high-entropy `MONITORING_API_KEY` on both nodes, with a unique `MONITORING_INSTANCE_ID` per node. The monitor is read-only and does not perform automatic remediation.
+
+See [RUNBOOK-Monitoring-And-Alerts.md](RUNBOOK-Monitoring-And-Alerts.md) for installation, Twilio setup, Atlas Free alert limits, security controls and fault-response procedures.
+
 ## Operational cautions
 
 - Never commit `env.list`, private keys, keystores or Google client secrets.
@@ -294,6 +303,7 @@ See [README-Krystal-HA-Production-Deployment.md](README-Krystal-HA-Production-De
 - [Security hardening round 2](README-Security-Hardening-Round-2.md)
 - [Load-balanced sessions](README-Load-Balanced-Sessions.md)
 - [Krystal high-availability deployment](README-Krystal-HA-Production-Deployment.md)
+- [Monitoring and Twilio alert runbook](RUNBOOK-Monitoring-And-Alerts.md)
 - [Patient portal appointments](README-Patient-Portal-Appointments.md)
 - [Office appointment and clinical flow](README-Office-Appointment-Clinical-Flow.md)
 - [HQ offices and SUPER context](README-HQ-Offices-And-Super-Context.md)

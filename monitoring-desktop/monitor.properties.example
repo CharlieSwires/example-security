@@ -1,0 +1,13 @@
+health.url=https://charlie-example-security.co.uk/health
+snapshot.url=https://charlie-example-security.co.uk/ExampleSecurity/api/monitoring/snapshot
+poll.seconds=60
+request.timeout.seconds=10
+snapshot.samples=4
+expected.instance.ids=sweet-quiet-caterpillar,shapely-yummy-kiwi
+failures.before.alert=3
+slow.response.millis=2000
+heap.warning.percent=85
+disk.warning.percent=80
+certificate.warning.days=21
+sms.enabled=false
+sms.cooldown.minutes=30

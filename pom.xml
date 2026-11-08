@@ -13,5 +13,6 @@
 
     <modules>
         <module>backend</module>
+        <module>monitoring-desktop</module>
     </modules>
 </project>
