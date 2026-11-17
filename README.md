@@ -99,6 +99,33 @@ See [README-Google-OAuth-Login.md](README-Google-OAuth-Login.md) for Google Clou
 
 The separate `example-security-key-rotator` utility performs controlled offline key rotation while the application is prevented from writing affected data.
 
+### API rate limiting
+
+Every backend instance applies a per-client token bucket to `/api/**`
+requests. The default sustained allowance is 15 requests per second with a
+30-request burst. Excess requests receive `HTTP 429 Too Many Requests`, a
+`Retry-After: 1` header and a small JSON response. They are also logged as
+`API_RATE_LIMITED` events without recording credentials or tokens.
+
+```properties
+RATE_LIMIT_ENABLED=true
+RATE_LIMIT_REQUESTS_PER_SECOND=15
+RATE_LIMIT_BURST_CAPACITY=30
+RATE_LIMIT_ALLOWLIST=
+```
+
+The limiter is deliberately local to each application node. With two evenly
+loaded nodes, the approximate combined sustained allowance is therefore 30
+requests per second. This is not a mathematically strict cluster-wide limit:
+uneven load-balancer distribution can cause one node to throttle before the
+other. Account-aware login throttling remains separate and protects accounts
+against attacks distributed across several source addresses.
+
+Only configure `RATE_LIMIT_ALLOWLIST` for a time-bounded, authorised test,
+and remove the entry immediately afterwards. Correct client identification
+also depends on keeping `TRUSTED_PROXY_REGEX` restricted to the genuine
+Krystal load-balancer path.
+
 ## Encrypted data
 
 `FieldCryptoService` provides AES-256-GCM field encryption. The passphrase and master salt must be supplied externally and shared by every backend instance accessing the same data.
@@ -154,8 +181,11 @@ load-balancer container:
 
 ```bash
 ./scripts_docker_compose_up.sh 2 2
+```
 
-to remove the Nginx load balancer when bringing down:
+To remove the Nginx load balancer when bringing down:
+
+```bash
 docker compose -f docker-compose.scaled.yml down --remove-orphans
 ```
 
@@ -266,6 +296,38 @@ For a full Docker rebuild:
 docker compose down
 docker compose up --build
 ```
+
+## Measured performance and throttling
+
+These short tests were run through the public HTTPS endpoint and Krystal load
+balancer against `GET /ExampleSecurity/api/csrf`, with two healthy
+application nodes and no test credentials.
+
+| Configured cap | Actual throughput | Requests | Successful | HTTP 429 | Other/transport failures | p95 |
+|---:|---:|---:|---:|---:|---:|---:|
+| 20 req/s | 15.83 req/s | 1,222 | 1,222 | 0 | 0 | 35 ms |
+| 40 req/s | 32.77 req/s | 2,358 | 1,863 | 495 | 0 | 22 ms |
+
+The 40-request/second run produced a controlled throttling rate of approximately
+21%. Accepted requests remained responsive and there were no `5xx` responses
+or transport failures. This demonstrates that the limiter sheds excess traffic
+cleanly for this endpoint and test shape; it is not proof of volumetric DDoS
+protection or a certified capacity limit.
+
+Earlier authenticated `GET /api/me` testing found that one application node
+could carry the tested 25-user workload with no failures and p95 near 100 ms.
+The second node is therefore primarily an availability and maintenance control
+at the current workload, rather than a demonstrated performance requirement.
+
+For a resilience check, run controlled excess traffic from one public IP while
+a friendly probe uses another public IP (for example a phone hotspot). Confirm
+that the friendly client remains responsive, the load generator receives
+`429` responses, and monitoring shows no `5xx`, transport failures or stale
+healthy-node data. Two laptops behind the same home router normally share one
+public IPv4 address and do not provide this separation.
+
+See [RUNBOOK-Rate-Limiting-And-DDoS-Test.md](RUNBOOK-Rate-Limiting-And-DDoS-Test.md)
+for the authorised test procedure, interpretation and emergency stop criteria.
 
 ## Production deployment
 
