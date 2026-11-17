@@ -75,6 +75,13 @@ app:
   security:
     max-request-bytes: ${MAX_REQUEST_BYTES:262144}
     debug-request-logging: ${SECURITY_DEBUG_REQUEST_LOGGING:false}
+    rate-limit:
+      enabled: ${RATE_LIMIT_ENABLED:true}
+      requests-per-second: ${RATE_LIMIT_REQUESTS_PER_SECOND:15}
+      burst-capacity: ${RATE_LIMIT_BURST_CAPACITY:30}
+      # Comma-separated exact client addresses. Use only as a temporary,
+      # documented exception for an authorised capacity test.
+      allowlisted-ips: ${RATE_LIMIT_ALLOWLIST:}
     audit:
       persist: ${SECURITY_AUDIT_PERSIST:true}
     login:

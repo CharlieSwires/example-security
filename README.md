@@ -90,6 +90,7 @@ See [README-Google-OAuth-Login.md](README-Google-OAuth-Login.md) for Google Clou
 - Shared MongoDB sessions for multiple backend instances
 - Session ID rotation after authentication
 - Login and password-reset throttling
+- General per-client API token-bucket limiting with explicit HTTP 429 responses
 - Verified-email and password-reset flows
 - Request-size limits and security response headers
 - Trusted-proxy handling for forwarded scheme, address, host and port
@@ -304,6 +305,7 @@ See [RUNBOOK-Monitoring-And-Alerts.md](RUNBOOK-Monitoring-And-Alerts.md) for ins
 - [Load-balanced sessions](README-Load-Balanced-Sessions.md)
 - [Krystal high-availability deployment](README-Krystal-HA-Production-Deployment.md)
 - [Monitoring and Twilio alert runbook](RUNBOOK-Monitoring-And-Alerts.md)
+- [Rate limiting and DDoS-resilience testing](RUNBOOK-Rate-Limiting-And-DDoS-Test.md)
 - [Patient portal appointments](README-Patient-Portal-Appointments.md)
 - [Office appointment and clinical flow](README-Office-Appointment-Clinical-Flow.md)
 - [HQ offices and SUPER context](README-HQ-Offices-And-Super-Context.md)
